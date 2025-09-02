@@ -113,8 +113,6 @@ jobs:
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
-          echo "- info: zstd upgraded."
-          git -C ../../kernel_platform/common diff --stat
 
       - name: Add KernelSU Next (Release)
         run: |
