@@ -90,11 +90,14 @@ jobs:
           ./apply.sh ../../kernel_platform/common
           rm -rf kernel_workspace/kernelsu-coccinelle
 
-      - name: Upgrade lz4
+      - name: Prepare zram upgrade
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
-          cd kernel_platform/common
+
+      - name: Upgrade lz4
+        run: |
+          cd kernel_workspace/kernel_platform/common
           rm -f lib/lz4/lz4_compress.c
           rm -f lib/lz4/lz4_decompress.c
           rm -f lib/lz4/lz4defs.h
@@ -104,15 +107,37 @@ jobs:
           cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
-          rm -rf kernel_workspace/co3kernel_build
 
       - name: Upgrade zstd
         run: |
           cd kernel_workspace
+          cp -r ../../co3kernel_build/zram/zstd_1.5.7_patches/* ./
+          patch -p1 < 1.patch || true
+          patch -p1 < 2.patch || true
+          patch -p1 < 3.patch || true
+          patch -p1 < 4.patch || true
+          patch -p1 < 5.patch || true
           git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
+          cd kernel_workspace
+          patch -p1 < 6a.patch || true
+          patch -p1 < 7a.patch || true
+          patch -p1 < 8a.patch || true
+          patch -p1 < 9a.patch || true
+          patch -p1 < 10a.patch || true
+          patch -p1 < 11a.patch || true
+          patch -p1 < 12a.patch || true
+          patch -p1 < ex1.patch || true
+          patch -p1 < ex2.patch || true
+          patch -p1 < ex3.patch || true
+          patch -p1 < ex4.patch || true
+          patch -p1 < default_level.patch || true
+
+      - name: Clean up
+        run: |
+          rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next (Release)
         run: |
