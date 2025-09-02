@@ -110,18 +110,19 @@ jobs:
 
       - name: Upgrade zstd
         run: |
-          cd kernel_workspace
+          cd kernel_workspace/kernel_platform/common
           cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
           patch -p1 < 1.patch || true
           patch -p1 < 2.patch || true
           patch -p1 < 3.patch || true
           patch -p1 < 4.patch || true
           patch -p1 < 5.patch || true
+          cd kernel_workspace
           git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
-          cd kernel_workspace
+          cd kernel_workspace/kernel_platform/common
           patch -p1 < 6a.patch || true
           patch -p1 < 7a.patch || true
           patch -p1 < 8a.patch || true
