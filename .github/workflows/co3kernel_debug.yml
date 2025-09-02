@@ -1,0 +1,228 @@
+name: co3kernel_build
+on:
+  workflow_dispatch:
+    inputs:
+      KERNEL_NAME:
+        description: "自定义 Linux version 字符串"
+        required: true
+        default: '-android13-8-o-01129-g2e2297c38782'
+      KERNEL_VER:
+        description: "自定义 KernelSU 版本号"
+        required: true
+        default: 'default'
+      TMPFS_XATTR:
+        description: "tmpfs 支持扩展属性"
+        required: true
+        type: choice
+        options:
+          - 'Y'
+          - 'N'
+        default: 'Y'
+      NET_ENHANCE:
+        description: "网络增强属性"
+        required: true
+        type: choice
+        options:
+          - 'Y'
+          - 'N'
+        default: 'Y'
+      O3_COMPILE:
+        description: "全局使用 o3 编译 (experimental)"
+        required: true
+        type: choice
+        options:
+          - 'Y'
+          - 'N'
+        default: 'N'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "DogEZ"
+          git config --global user.email "DdogezD@gmail.com"
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt upgrade -y
+          sudo apt install -y python3 git curl ocaml ocaml-findlib opam
+          sudo apt install -y libpcre3-dev pkg-config
+          opam init -y --disable-sandboxing
+          eval $(opam env)
+          opam update
+          opam install -y --assume-depexts coccinelle.1.3.0
+
+      - name: Install repo tool
+        run: |
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo
+          sudo mv ~/repo /usr/local/bin/repo
+
+      - name: Initialize repo and sync
+        run: |
+          mkdir kernel_workspace && cd kernel_workspace
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8550 -m oneplus_open_v.xml --depth=1
+          repo sync
+          rm kernel_platform/common/android/abi_gki_protected_exports_* || echo "No protected exports!"
+          rm kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
+          sed -i 's/ -dirty//g' kernel_platform/common/scripts/setlocalversion
+          sed -i 's/ -dirty//g' kernel_platform/msm-kernel/scripts/setlocalversion
+
+      - name: Patch kernel by Coccinelle
+        run: |
+          cd kernel_workspace
+          git clone https://github.com/DdogezD/kernelsu-coccinelle
+          cd kernelsu-coccinelle/scope-minimized-hooks
+          eval $(opam env)
+          ./apply.sh ../../kernel_platform/common
+          rm -rf kernel_workspace/kernelsu-coccinelle
+
+      - name: Prepare zram upgrade
+        run: |
+          cd kernel_workspace
+          git clone https://github.com/DdogezD/co3kernel_build.git
+
+      - name: Upgrade lz4
+        run: |
+          cd kernel_workspace/kernel_platform/common
+          rm -f lib/lz4/lz4_compress.c
+          rm -f lib/lz4/lz4_decompress.c
+          rm -f lib/lz4/lz4defs.h
+          rm -f lib/lz4/lz4hc_compress.c
+          rm -rf fs/f2fs/lz4armv8
+          cp -r ../../co3kernel_build/zram/lz4/* ./lib/lz4/
+          cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
+          cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
+          patch -p1 < lz4_1.10.0.patch || true
+
+      - name: Upgrade zstd
+        run: |
+          cd kernel_workspace/kernel_platform/common
+          cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
+          patch -p1 < 1.patch || true
+          echo "patch1 done!"
+          patch -p1 < 2.patch || true
+          echo "patch2 done!"
+          patch -p1 < 3.patch || true
+          echo "patch3 done!"
+          patch -p1 < 4.patch || true
+          echo "patch4 done!"
+          patch -p1 < 5.patch || true
+          echo "patch5 done!"
+          cd ../..
+          git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
+          cd zstd/contrib/linux-kernel
+          make libzstd
+          make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
+          cd kernel_platform/common
+          patch -p1 < 6a.patch || true
+          echo "patch6a done!"
+          patch -p1 < 7a.patch || true
+          echo "patch7a done!"
+          patch -p1 < 8a.patch || true
+          echo "patch8a done!"
+          patch -p1 < 9a.patch || true
+          echo "patch9a done!"
+          patch -p1 < 10a.patch || true
+          echo "patch10a done!"
+          patch -p1 < 11a.patch || true
+          echo "patch11a done!"
+          patch -p1 < 12a.patch || true
+          echo "patch12a done!"
+          patch -p1 < ex1.patch || true
+          echo "patch_ex1 done!"
+          patch -p1 < ex2.patch || true
+          echo "patch_ex2 done!"
+          patch -p1 < ex3.patch || true
+          echo "patch_ex3 done!"
+          patch -p1 < ex4.patch || true
+          echo "patch_ex4 done!"
+          patch -p1 < default_level.patch || true
+          echo "patch_default_level done!"
+
+      - name: Clean up
+        run: |
+          rm -rf kernel_workspace/co3kernel_build
+
+      - name: Add KernelSU Next (Release)
+        run: |
+          cd kernel_workspace/kernel_platform
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          cd ./KernelSU-Next
+          MAKE_FILE="kernel/Makefile"
+          DEFAULT_VERSION=11998
+          if [[ "$KERNEL_VER" == "default" ]]; then
+            KSU_VERSION=$(($(git rev-list --count HEAD) + 10200))
+          else
+            KSU_VERSION="$KERNEL_VER"
+          fi
+          sed -i "s/^DKSU_VERSION.*/DKSU_VERSION=${KSU_VERSION}/" "${MAKE_FILE}"
+
+      - name: Add defconfigs
+        run: |
+          cd kernel_workspace/kernel_platform
+          echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
+          if [ "${{ github.event.inputs.TMPFS_XATTR }}" == "Y" ]; then
+            sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+          if [ "${{ github.event.inputs.NET_ENHANCE }}" == "Y" ]; then
+            sed -i '/^CONFIG_TCP_CONG_ADVANCED=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_CONG_WESTWOOD=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_CONG_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_NET_SCH_FQ=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_NET_SCH_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_CONG_HTCP=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_CONG_BIC=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IPV6_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IPV6_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IP_NF_TARGET_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IP_NF_TARGET_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+          if [ "${{ github.event.inputs.O3_COMPILE }}" == "Y" ]; then
+            echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+          sed -i 's/check_defconfig//' ./common/build.config.gki
+
+      - name: Spoof Linux version
+        run: |
+          cd kernel_workspace/kernel_platform
+          sed -i '$s|echo "\$res"|echo "\${{ github.event.inputs.KERNEL_NAME }}"|' ./common/scripts/setlocalversion
+          sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
+
+      - name: Build kernel
+        run: |
+          cd kernel_workspace
+          LTO=thin ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
+
+      - name: Prepare Kernel
+        run: |
+         cp kernel_workspace/kernel_platform/out/msm-kernel-kalama-gki/dist/Image ./kernel_workspace/kernel
+
+      - name: Upload Image
+        uses: actions/upload-artifact@v4
+        with:
+         name: co3kernel
+         path: kernel_workspace/kernel
