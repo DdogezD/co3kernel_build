@@ -125,18 +125,6 @@ jobs:
           patch -p1 < 5.patch || true
           echo "patch5 done!"
 
-      - name: Prepare files
-        run: |
-          mkdir -p kernel_workspace/debug
-          cp kernel_workspace/kernel_platform/common/fs/btrfs/zstd.c.rej kernel_workspace/debug/
-          cp kernel_workspace/kernel_platform/common/include/linux/zstd.h.rej kernel_workspace/debug/
-
-      - name: Upload files
-        uses: actions/upload-artifact@v4
-        with:
-         name: debug_files
-         path: kernel_workspace/debug
-
       - name: Upgrade zstd phase2
         run: |
           cd kernel_workspace
@@ -147,7 +135,7 @@ jobs:
 
       - name: Upgrade zstd phase3
         run: |
-          cd kernel_platform/common
+          cd kernel_workspace/kernel_platform/common
           patch -p1 < 6a.patch || true
           echo "patch6a done!"
           patch -p1 < 7a.patch || true
