@@ -112,6 +112,7 @@ jobs:
         run: |
           cd kernel_workspace/kernel_platform/common
           cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
+          git fetch origin 71c36788b9253f086d09763b98804ed473e12a3b
           git revert --no-edit 71c36788b9253f086d09763b98804ed473e12a3b
           patch -p1 < 1.patch || true
           echo "patch1 done!"
