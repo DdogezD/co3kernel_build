@@ -17,7 +17,7 @@
 ---
 **网络相关配置优化**
  
-可选 bbr & westwood 网络拥塞算法
+可选 bbr & westwood 网络拥塞算法 (默认 westwood )
 
 支持显式拥塞通知 (ECN)
 
