@@ -112,7 +112,7 @@ jobs:
           git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
-          make import LINUX=../../kernel_platform/common
+          make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
           echo "- info: zstd upgraded."
           git -C ../../kernel_platform/common diff --stat
 
