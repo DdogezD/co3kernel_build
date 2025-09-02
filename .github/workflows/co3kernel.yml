@@ -111,7 +111,7 @@ jobs:
       - name: Upgrade zstd
         run: |
           cd kernel_workspace
-          cp -r ../../co3kernel_build/zram/zstd_1.5.7_patches/* ./
+          cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
           patch -p1 < 1.patch || true
           patch -p1 < 2.patch || true
           patch -p1 < 3.patch || true
