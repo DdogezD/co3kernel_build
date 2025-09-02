@@ -80,7 +80,7 @@ jobs:
           cd kernelsu-coccinelle/scope-minimized-hooks
           eval $(opam env)
           ./apply.sh ../../kernel_platform/common
-          rm -rf ../../kernelsu-coccinelle
+          rm -rf kernel_workspace/kernelsu-coccinelle
 
       - name: Upgrade LZ4
         run: |
@@ -96,7 +96,7 @@ jobs:
           cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
-          rm -rf ../../co3kernel_build
+          rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next (Release)
         run: |
