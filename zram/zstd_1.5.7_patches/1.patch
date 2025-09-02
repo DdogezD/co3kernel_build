@@ -269,7 +269,7 @@ index 9a4871636c6c7..c8cf690013f3e 100644
  			ret = -EIO;
  			goto done;
  		}
-@@ -626,17 +626,17 @@ int zstd_decompress(struct list_head *ws, unsigned char *data_in,
+@@ -624,7 +624,7 @@
  		size_t destlen)
  {
  	struct workspace *workspace = list_entry(ws, struct workspace, list);
@@ -278,8 +278,8 @@ index 9a4871636c6c7..c8cf690013f3e 100644
  	int ret = 0;
  	size_t ret2;
  	unsigned long total_out = 0;
+@@ -631,9 +631,9 @@
  	unsigned long pg_offset = 0;
- 	char *kaddr;
  
 -	stream = ZSTD_initDStream(
 +	stream = zstd_init_dstream(
