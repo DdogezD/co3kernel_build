@@ -6,7 +6,6 @@
 - **支持 tmpfs 扩展属性:** 可使用 [Mountify](https://github.com/backslashxx/mountify) 完成模块挂载。
 - **支持 bbr & westwood 网络拥塞算法**
 - **LZ4 1.10.0**
-- **ZSTD 1.5.7**
 - **默认伪装为最新 OnePlus Open (NA) 内核 Linux 版本**
 - **使用官方 Build 脚本编译, 力求与官方产物接近**
 
