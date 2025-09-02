@@ -37,16 +37,15 @@ diff --git a/crypto/lz4hc.c b/crypto/lz4hc.c
 diff --git a/fs/f2fs/compress.c b/fs/f2fs/compress.c
 --- a/fs/f2fs/compress.c
 +++ b/fs/f2fs/compress.c
-@@ -19,7 +19,7 @@
+@@ -19,7 +19,6 @@
  #include "segment.h"
  #include <trace/events/f2fs.h>
  #if defined(CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT) || defined(__ARCH_HAS_LZ4_ACCELERATOR)
 -#include "lz4armv8/lz4accel.h"
-+#include <lz4armv8/lz4accel.h>
  #include "f2fs_lz4.h"
  #endif
  
-@@ -355,8 +355,13 @@
+@@ -355,8 +354,13 @@
  
  	if (f2fs_compress_layout(dic->inode) == COMPRESS_FIXED_INPUT) {
  		expected = PAGE_SIZE << dic->log_cluster_size;
@@ -64,16 +63,7 @@ diff --git a/fs/f2fs/compress.c b/fs/f2fs/compress.c
 diff --git a/fs/f2fs/Makefile b/fs/f2fs/Makefile
 --- a/fs/f2fs/Makefile
 +++ b/fs/f2fs/Makefile
-@@ -1,6 +1,8 @@
- # SPDX-License-Identifier: GPL-2.0
- obj-$(CONFIG_F2FS_FS) += f2fs.o
- 
-+ccflags-y += -I$(srctree)/lib/lz4
-+
- f2fs-y		:= dir.o file.o inode.o namei.o hash.o super.o inline.o
- f2fs-y		+= checkpoint.o gc.o data.o node.o segment.o recovery.o
- f2fs-y		+= shrinker.o extent_cache.o sysfs.o
-@@ -10,6 +12,3 @@
+@@ -10,6 +10,3 @@
  f2fs-$(CONFIG_FS_VERITY) += verity.o
  f2fs-$(CONFIG_F2FS_FS_COMPRESSION) += compress.o
  f2fs-$(CONFIG_F2FS_IOSTAT) += iostat.o
