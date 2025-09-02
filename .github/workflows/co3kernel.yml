@@ -18,14 +18,22 @@ on:
           - 'Y'
           - 'N'
         default: 'Y'
-      TCP_ALGORITHM:
-        description: "tcp 算法增强"
+      NET_ENHANCE:
+        description: "网络增强属性"
         required: true
         type: choice
         options:
           - 'Y'
           - 'N'
         default: 'Y'
+      O3_COMPILE:
+        description: "全局使用 o3 编译 (experimental)"
+        required: true
+        type: choice
+        options:
+          - 'Y'
+          - 'N'
+        default: 'N'
 
 jobs:
   build:
@@ -112,7 +120,7 @@ jobs:
           fi
           sed -i "s/^DKSU_VERSION.*/DKSU_VERSION=${KSU_VERSION}/" "${MAKE_FILE}"
 
-      - name: Add configuration settings
+      - name: Add defconfigs
         run: |
           cd kernel_workspace/kernel_platform
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
@@ -120,9 +128,11 @@ jobs:
             sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
           fi
-          if [ "${{ github.event.inputs.TCP_ALGORITHM }}" == "Y" ]; then
+          if [ "${{ github.event.inputs.NET_ENHANCE }}" == "Y" ]; then
             sed -i '/^CONFIG_TCP_CONG_ADVANCED=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_CONG_WESTWOOD=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
             sed -i '/^CONFIG_TCP_CONG_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TCP_CONG_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
             sed -i '/^CONFIG_NET_SCH_FQ=/d' ./common/arch/arm64/configs/gki_defconfig
@@ -131,8 +141,17 @@ jobs:
             echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
             sed -i '/^CONFIG_TCP_CONG_BIC=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
-            sed -i '/^CONFIG_TCP_CONG_WESTWOOD=/d' ./common/arch/arm64/configs/gki_defconfig
-            echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_TCP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_TCP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IPV6_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IPV6_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^CONFIG_IP_NF_TARGET_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
+            echo 'CONFIG_IP_NF_TARGET_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+          if [ "${{ github.event.inputs.O3_COMPILE }}" == "Y" ]; then
+            echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           fi
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
