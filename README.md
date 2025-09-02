@@ -31,7 +31,7 @@ zstd 升级到 v1.5.7
 禁用 zstdn, 使 zram1 算法 fallback 为 zstd
 
 ---
-**默认伪装为最新 OnePlus Open (NA) 内核 Linux 版本**
+**伪装最新 (NA) Linux 版本**
 
 避免内核名特征检查
 
