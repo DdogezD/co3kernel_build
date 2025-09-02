@@ -90,7 +90,7 @@ jobs:
           ./apply.sh ../../kernel_platform/common
           rm -rf kernel_workspace/kernelsu-coccinelle
 
-      - name: Upgrade LZ4
+      - name: Upgrade lz4
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
@@ -105,6 +105,16 @@ jobs:
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
           rm -rf kernel_workspace/co3kernel_build
+
+      - name: Upgrade zstd
+        run: |
+          cd kernel_workspace
+          git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
+          cd zstd/contrib/linux-kernel
+          make libzstd
+          make import LINUX=../../kernel_platform/common
+          echo "- info: zstd upgraded."
+          git -C ../../kernel_platform/common diff --stat
 
       - name: Add KernelSU Next (Release)
         run: |
