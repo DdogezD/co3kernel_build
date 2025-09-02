@@ -124,6 +124,8 @@ jobs:
           echo "patch4 done!"
           patch -p1 < 5.patch || true
           echo "patch5 done!"
+          patch -p1 < 6.patch || true
+          echo "patch6 done!"
 
       - name: Upgrade zstd phase2
         run: |
