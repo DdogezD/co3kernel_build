@@ -1,0 +1,31 @@
+From 2c8baa16f83e303c3bc4da98f16236c08e68a297 Mon Sep 17 00:00:00 2001
+From: lateautumn233 <lateautumn233@github.com>
+Date: Wed, 9 Nov 2022 17:56:00 +0800
+Subject: [PATCH] fs: incfs: sync zstd changes
+
+---
+ fs/incfs/data_mgmt.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/incfs/data_mgmt.c b/fs/incfs/data_mgmt.c
+index 6381f8fd4e872..2942281bc05cd 100644
+--- a/fs/incfs/data_mgmt.c
++++ b/fs/incfs/data_mgmt.c
+@@ -432,7 +432,7 @@ static ssize_t zstd_decompress_safe(struct mount_info *mi,
+ 		return result;
+ 
+ 	if (!mi->mi_zstd_stream) {
+-		unsigned int workspace_size = ZSTD_DStreamWorkspaceBound(
++		unsigned int workspace_size = zstd_dstream_workspace_bound(
+ 						INCFS_DATA_FILE_BLOCK_SIZE);
+ 		void *workspace = kvmalloc(workspace_size, GFP_NOFS);
+ 		ZSTD_DStream *stream;
+@@ -442,7 +442,7 @@ static ssize_t zstd_decompress_safe(struct mount_info *mi,
+ 			goto out;
+ 		}
+ 
+-		stream = ZSTD_initDStream(INCFS_DATA_FILE_BLOCK_SIZE, workspace,
++		stream = zstd_init_dstream(INCFS_DATA_FILE_BLOCK_SIZE, workspace,
+ 				  workspace_size);
+ 		if (!stream) {
+ 			kvfree(workspace);

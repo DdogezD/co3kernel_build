@@ -1,0 +1,26 @@
+From 78ac82c980997eb98addeab7f6c062745c065671 Mon Sep 17 00:00:00 2001
+From: Pzqqt <821026875@qq.com>
+Date: Thu, 19 Oct 2023 13:24:08 +0800
+Subject: [PATCH] crypto: zstd: Restore the default compression level to 3
+
+The compression/decompression speed of the updated zstd library is
+already fast enough, and our soc performance is strong enough.
+
+so let's increase the compression level to get a higher compression ratio.
+---
+ crypto/zstd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/crypto/zstd.c b/crypto/zstd.c
+index 3da2a10e24999..ee827f8809d4f 100644
+--- a/crypto/zstd.c
++++ b/crypto/zstd.c
+@@ -15,7 +15,7 @@
+ #include <crypto/internal/scompress.h>
+ 
+ 
+-static uint __read_mostly compression_level = 1;
++static uint __read_mostly compression_level = 3;
+ module_param(compression_level, uint, 0644);
+ 
+ struct zstd_ctx {

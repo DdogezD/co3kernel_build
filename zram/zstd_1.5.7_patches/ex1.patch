@@ -1,0 +1,25 @@
+From 0203cc9e13ef4eb15d72d647ad6d7fdefc16dabc Mon Sep 17 00:00:00 2001
+From: Pzqqt <821026875@qq.com>
+Date: Sun, 23 Feb 2025 13:44:28 +0800
+Subject: [PATCH] lib: zstd: Fix compilation after merging zstd v1.5.7
+
+../lib/zstd/compress/../common/mem.h:18:10: fatal error: 'linux/unaligned.h' file not found
+#include <linux/unaligned.h>  /* get_unaligned, put_unaligned* */
+         ^~~~~~~~~~~~~~~~~~~
+---
+ lib/zstd/common/mem.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/zstd/common/mem.h b/lib/zstd/common/mem.h
+index d9bd752fe17b1..2e91e7780c1fd 100644
+--- a/lib/zstd/common/mem.h
++++ b/lib/zstd/common/mem.h
+@@ -15,7 +15,7 @@
+ /*-****************************************
+ *  Dependencies
+ ******************************************/
+-#include <linux/unaligned.h>  /* get_unaligned, put_unaligned* */
++#include <asm/unaligned.h>  /* get_unaligned, put_unaligned* */
+ #include <linux/compiler.h>  /* inline */
+ #include <linux/swab.h>  /* swab32, swab64 */
+ #include <linux/types.h>  /* size_t, ptrdiff_t */

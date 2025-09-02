@@ -1,0 +1,50 @@
+From 70168143b302378ccff178bf28cb140c783dac88 Mon Sep 17 00:00:00 2001
+From: DevriesL <therkduan@gmail.com>
+Date: Sat, 20 Apr 2019 22:33:12 +0800
+Subject: [PATCH] zstd: merge optimization from Samsung
+
+Pzqqt: Original commit: d3022d1ea973ab3a0b5e30a1802c2945a21eeea3, port to the zstd-1.4.10.
+
+Signed-off-by: DevriesL <therkduan@gmail.com>
+Signed-off-by: Artem Labazov <123321artyom@gmail.com>
+Signed-off-by: Adam W. Willis <return.of.octobot@gmail.com>
+---
+ crypto/zstd.c            | 4 ++--
+ include/linux/zstd_lib.h | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/crypto/zstd.c b/crypto/zstd.c
+index 154a969c83a82..bc8111a5959d1 100644
+--- a/crypto/zstd.c
++++ b/crypto/zstd.c
+@@ -15,7 +15,7 @@
+ #include <crypto/internal/scompress.h>
+ 
+ 
+-#define ZSTD_DEF_LEVEL	3
++#define ZSTD_DEF_LEVEL	1
+ 
+ struct zstd_ctx {
+ 	zstd_cctx *cctx;
+@@ -26,7 +26,7 @@ struct zstd_ctx {
+ 
+ static zstd_parameters zstd_params(void)
+ {
+-	return zstd_get_params(ZSTD_DEF_LEVEL, 0);
++	return zstd_get_params(ZSTD_DEF_LEVEL, PAGE_SIZE);
+ }
+ 
+ static int zstd_comp_init(struct zstd_ctx *ctx)
+diff --git a/include/linux/zstd_lib.h b/include/linux/zstd_lib.h
+index a36b374dbbce9..00a4cdd701ef4 100644
+--- a/include/linux/zstd_lib.h
++++ b/include/linux/zstd_lib.h
+@@ -118,7 +118,7 @@ ZSTDLIB_API const char* ZSTD_versionString(void);
+ #define ZSTD_MAGIC_SKIPPABLE_START  0x184D2A50    /* all 16 values, from 0x184D2A50 to 0x184D2A5F, signal the beginning of a skippable frame */
+ #define ZSTD_MAGIC_SKIPPABLE_MASK   0xFFFFFFF0
+ 
+-#define ZSTD_BLOCKSIZELOG_MAX  17
++#define ZSTD_BLOCKSIZELOG_MAX  12
+ #define ZSTD_BLOCKSIZE_MAX     (1<<ZSTD_BLOCKSIZELOG_MAX)
+ 
+ 
