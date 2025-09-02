@@ -113,28 +113,45 @@ jobs:
           cd kernel_workspace/kernel_platform/common
           cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
           patch -p1 < 1.patch || true
+          echo "patch1 done!"
           patch -p1 < 2.patch || true
+          echo "patch2 done!"
           patch -p1 < 3.patch || true
+          echo "patch3 done!"
           patch -p1 < 4.patch || true
+          echo "patch4 done!"
           patch -p1 < 5.patch || true
-          cd kernel_workspace
+          echo "patch5 done!"
+          cd ../..
           git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
-          cd kernel_workspace/kernel_platform/common
+          cd kernel_platform/common
           patch -p1 < 6a.patch || true
+          echo "patch6a done!"
           patch -p1 < 7a.patch || true
+          echo "patch7a done!"
           patch -p1 < 8a.patch || true
+          echo "patch8a done!"
           patch -p1 < 9a.patch || true
+          echo "patch9a done!"
           patch -p1 < 10a.patch || true
+          echo "patch10a done!"
           patch -p1 < 11a.patch || true
+          echo "patch11a done!"
           patch -p1 < 12a.patch || true
+          echo "patch12a done!"
           patch -p1 < ex1.patch || true
+          echo "patch_ex1 done!"
           patch -p1 < ex2.patch || true
+          echo "patch_ex2 done!"
           patch -p1 < ex3.patch || true
+          echo "patch_ex3 done!"
           patch -p1 < ex4.patch || true
+          echo "patch_ex4 done!"
           patch -p1 < default_level.patch || true
+          echo "patch_default_level done!"
 
       - name: Clean up
         run: |
