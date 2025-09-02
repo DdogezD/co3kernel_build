@@ -1,4 +1,4 @@
-name: co3kernel_build
+name: co3kernel_build_debug
 on:
   workflow_dispatch:
     inputs:
@@ -108,7 +108,7 @@ jobs:
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
 
-      - name: Upgrade zstd
+      - name: Upgrade zstd phase1
         run: |
           cd kernel_workspace/kernel_platform/common
           cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
@@ -122,11 +122,29 @@ jobs:
           echo "patch4 done!"
           patch -p1 < 5.patch || true
           echo "patch5 done!"
-          cd ../..
+
+      - name: Prepare files
+        run: |
+          mkdir -p kernel_workspace/debug
+          cp kernel_workspace/kernel_platform/common/fs/btrfs/zstd.c.rej kernel_workspace/debug/
+          cp kernel_workspace/kernel_platform/common/include/linux/zstd.h.rej kernel_workspace/debug/
+
+      - name: Upload files
+        uses: actions/upload-artifact@v4
+        with:
+         name: debug_files
+         path: kernel_workspace/debug
+
+      - name: Upgrade zstd phase2
+        run: |
+          cd kernel_workspace
           git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
+
+      - name: Upgrade zstd phase3
+        run: |
           cd kernel_platform/common
           patch -p1 < 6a.patch || true
           echo "patch6a done!"
@@ -153,7 +171,7 @@ jobs:
           patch -p1 < default_level.patch || true
           echo "patch_default_level done!"
 
-      - name: Clean up
+      - name: Wipe out
         run: |
           rm -rf kernel_workspace/co3kernel_build
 
