@@ -22,13 +22,11 @@
 支持显式拥塞通知 (ECN)
 
 ---
-**双层 zram 优化**
+**zram 优化**
 
 lz4 升级到 v1.10.0
 
 zstd 升级到 v1.5.7
-
-禁用 zstdn, 使 zram1 算法 fallback 为 zstd
 
 ---
 **伪装最新 (NA) Linux 版本**
