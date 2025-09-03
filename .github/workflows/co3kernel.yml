@@ -102,7 +102,7 @@ jobs:
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
-          cd kernel_workspace/kernel_platform/common
+          cd kernel_platform/common
           rm -f lib/lz4/lz4_compress.c
           rm -f lib/lz4/lz4_decompress.c
           rm -f lib/lz4/lz4defs.h
