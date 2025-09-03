@@ -90,7 +90,7 @@ jobs:
           ./apply.sh ../../kernel_platform/common
           rm -rf kernel_workspace/kernelsu-coccinelle
 
-      - name: Prepare zram upgrade
+      - name: Prepare files
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
@@ -126,15 +126,8 @@ jobs:
           echo "patch5 done!"
           patch -p1 < 6.patch || true
           echo "patch6 done!"
-
-      - name: Upgrade zstd：sync to zstd 1.5.6
-        run: |
-          mkdir kernel_workspace/zstd_156
-          cd kernel_workspace/zstd_156
-          git clone --branch v1.5.6 https://github.com/facebook/zstd.git
-          cd zstd/contrib/linux-kernel
-          make libzstd
-          make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
+          patch -p1 < fix_zstd_makefile.patch || true
+          echo "fix_zstd_makefile done!"
 
       - name: Upgrade zstd：sync to zstd 1.5.7
         run: |
