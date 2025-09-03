@@ -108,7 +108,7 @@ jobs:
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
 
-      - name: Upgrade zstd phase1
+      - name: Upgrade zstd：sync to standard zstd
         run: |
           cd kernel_workspace/kernel_platform/common
           cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
@@ -127,15 +127,23 @@ jobs:
           patch -p1 < 6.patch || true
           echo "patch6 done!"
 
-      - name: Upgrade zstd phase2
+      - name: Upgrade zstd：sync to zstd 1.5.6
         run: |
           cd kernel_workspace
-          git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
+          git clone --branch v1.5.6 https://github.com/facebook/zstd.git
           cd zstd/contrib/linux-kernel
           make libzstd
           make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
 
-      - name: Upgrade zstd phase3
+      - name: Upgrade zstd：sync to zstd 1.5.7
+        run: |
+          cd kernel_workspace
+          git clone --branch v1.5.7 https://github.com/facebook/zstd.git
+          cd zstd/contrib/linux-kernel
+          make libzstd
+          make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
+
+      - name: Upgrade zstd：chores
         run: |
           cd kernel_workspace/kernel_platform/common
           patch -p1 < 6a.patch || true
@@ -217,11 +225,11 @@ jobs:
           cd kernel_workspace
           LTO=thin ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
 
-      - name: Prepare Kernel
+      - name: Prepare kernel
         run: |
          cp kernel_workspace/kernel_platform/out/msm-kernel-kalama-gki/dist/Image ./kernel_workspace/kernel
 
-      - name: Upload Image
+      - name: Upload co3kernel
         uses: actions/upload-artifact@v4
         with:
          name: co3kernel
