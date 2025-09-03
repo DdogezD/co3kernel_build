@@ -26,6 +26,14 @@ on:
           - 'Y'
           - 'N'
         default: 'Y'
+      TCP_ALGO:
+        description: "默认 tcp 算法"
+        required: true
+        type: choice
+        options:
+          - 'westwood'
+          - 'bbr'
+        default: 'westwood'
       O3_COMPILE:
         description: "全局使用 o3 编译 (experimental)"
         required: true
@@ -90,13 +98,10 @@ jobs:
           ./apply.sh ../../kernel_platform/common
           rm -rf kernel_workspace/kernelsu-coccinelle
 
-      - name: Prepare zram upgrade
+      - name: Upgrade lz4
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
-
-      - name: Upgrade lz4
-        run: |
           cd kernel_workspace/kernel_platform/common
           rm -f lib/lz4/lz4_compress.c
           rm -f lib/lz4/lz4_decompress.c
@@ -107,57 +112,9 @@ jobs:
           cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
           patch -p1 < lz4_1.10.0.patch || true
-
-      - name: Upgrade zstd
-        run: |
-          cd kernel_workspace/kernel_platform/common
-          cp ../../co3kernel_build/zram/zstd_1.5.7_patches/*.patch ./
-          patch -p1 < 1.patch || true
-          echo "patch1 done!"
-          patch -p1 < 2.patch || true
-          echo "patch2 done!"
-          patch -p1 < 3.patch || true
-          echo "patch3 done!"
-          patch -p1 < 4.patch || true
-          echo "patch4 done!"
-          patch -p1 < 5.patch || true
-          echo "patch5 done!"
-          cd ../..
-          git clone --branch v1.5.7 --depth 1 https://github.com/facebook/zstd.git
-          cd zstd/contrib/linux-kernel
-          make libzstd
-          make import LINUX=$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/common
-          cd kernel_platform/common
-          patch -p1 < 6a.patch || true
-          echo "patch6a done!"
-          patch -p1 < 7a.patch || true
-          echo "patch7a done!"
-          patch -p1 < 8a.patch || true
-          echo "patch8a done!"
-          patch -p1 < 9a.patch || true
-          echo "patch9a done!"
-          patch -p1 < 10a.patch || true
-          echo "patch10a done!"
-          patch -p1 < 11a.patch || true
-          echo "patch11a done!"
-          patch -p1 < 12a.patch || true
-          echo "patch12a done!"
-          patch -p1 < ex1.patch || true
-          echo "patch_ex1 done!"
-          patch -p1 < ex2.patch || true
-          echo "patch_ex2 done!"
-          patch -p1 < ex3.patch || true
-          echo "patch_ex3 done!"
-          patch -p1 < ex4.patch || true
-          echo "patch_ex4 done!"
-          patch -p1 < default_level.patch || true
-          echo "patch_default_level done!"
-
-      - name: Clean up
-        run: |
           rm -rf kernel_workspace/co3kernel_build
 
-      - name: Add KernelSU Next (Release)
+      - name: Add KernelSU Next
         run: |
           cd kernel_workspace/kernel_platform
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
@@ -200,6 +157,13 @@ jobs:
             echo 'CONFIG_IPV6_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
             sed -i '/^CONFIG_IP_NF_TARGET_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_IP_NF_TARGET_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
+            if [ "${{ github.event.inputs.TCP_ALGO }}" == "bbr" ]; then
+              sed -i '/^CONFIG_DEFAULT_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
+              echo 'CONFIG_DEFAULT_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
+            else
+              sed -i '/^CONFIG_DEFAULT_WESTWOOD=/d' ./common/arch/arm64/configs/gki_defconfig
+              echo 'CONFIG_DEFAULT_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+            fi
           fi
           if [ "${{ github.event.inputs.O3_COMPILE }}" == "Y" ]; then
             echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
