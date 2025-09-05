@@ -107,7 +107,7 @@ jobs:
           rm -f lib/lz4/lz4_decompress.c
           rm -f lib/lz4/lz4defs.h
           rm -f lib/lz4/lz4hc_compress.c
-          rm -rf fs/f2fs/lz4armv8
+          mv fs/f2fs/lz4armv8 lib/lz4/
           cp -r ../../co3kernel_build/zram/lz4/* ./lib/lz4/
           cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
           cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
