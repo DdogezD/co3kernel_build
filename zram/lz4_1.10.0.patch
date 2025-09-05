@@ -88,11 +88,11 @@ diff --git a/fs/incfs/data_mgmt.c b/fs/incfs/data_mgmt.c
  			return -EBADMSG;
  		return result;
 diff --git a/fs/f2fs/lz4armv8/lz4accel.h b/lib/lz4/lz4armv8/lz4accel.h
-rename from fs/f2fs/lz4armv8/lz4accel.h
-rename to lib/lz4/lz4armv8/lz4accel.h
+--- fs/f2fs/lz4armv8/lz4accel.h
++++ lib/lz4/lz4armv8/lz4accel.h
 diff --git a/fs/f2fs/lz4armv8/lz4accel.c b/lib/lz4/lz4armv8/lz4accel.c
-rename from fs/f2fs/lz4armv8/lz4accel.c
-rename to lib/lz4/lz4armv8/lz4accel.c
+--- fs/f2fs/lz4armv8/lz4accel.c
++++ lib/lz4/lz4armv8/lz4accel.c
 diff --git a/fs/f2fs/lz4armv8/lz4armv8.S b/lib/lz4/lz4armv8/lz4armv8.S
-rename from fs/f2fs/lz4armv8/lz4armv8.S
-rename to lib/lz4/lz4armv8/lz4armv8.S
+--- fs/f2fs/lz4armv8/lz4armv8.S
++++ lib/lz4/lz4armv8/lz4armv8.S
