@@ -5,7 +5,7 @@ on:
       KERNEL_NAME:
         description: "自定义 Linux version 字符串"
         required: true
-        default: '-android13-8-o-01129-g2e2297c38782'
+        default: '-android13-8-o-01130-g347281c28ac8'
       KERNEL_VER:
         description: "自定义 KernelSU 版本号"
         required: true
