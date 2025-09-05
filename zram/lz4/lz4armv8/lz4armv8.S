@@ -74,7 +74,10 @@
 .macro lz4_decompress_asm_generic	doprfm=1
 	stp     x29, x30, [sp, #-16]!
 	mov     x29, sp
-	stp	x3, x0, [sp, #-16]!			/* push src and dst in stack */
+	stp	x19, x20, [sp, #-16]!
+	stp	x21, x22, [sp, #-16]!
+	stp	x23, x24, [sp, #-16]!
+	stp	x3, x0, [sp, #-16]!		/* push src and dst in stack */
 	ldr	x3, [x3]				/* x3 = *src_ptr */
 	ldr	x0, [x0]				/* x0 = *dst_ptr */
 	adr_l	permtable_addr, Permtable
@@ -265,6 +268,9 @@ Exit_here:
 	ldp	x3, x0, [sp], #16
 	str	save_src, [x3]
 	str	save_dst, [x0]
+	ldp	x23, x24, [sp], #16
+	ldp	x21, x22, [sp], #16
+	ldp	x19, x20, [sp], #16
 	mov	x0, tmp
 	ldp     x29, x30, [sp], #16
 	ret     x30
