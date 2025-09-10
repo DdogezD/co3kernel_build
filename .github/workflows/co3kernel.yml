@@ -5,7 +5,7 @@ on:
       KERNEL_NAME:
         description: "自定义 Linux version 字符串"
         required: true
-        default: '-android13-8-o-01130-g347281c28ac8'
+        default: '-android13-8-o-01140-g043e86cdd499'
       KERNEL_VER:
         description: "自定义 KernelSU 版本号"
         required: true
@@ -149,14 +149,6 @@ jobs:
             echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
             sed -i '/^CONFIG_TCP_CONG_BIC=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
-            sed -i '/^CONFIG_IP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
-            echo 'CONFIG_IP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
-            sed -i '/^CONFIG_TCP_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
-            echo 'CONFIG_TCP_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
-            sed -i '/^CONFIG_IPV6_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
-            echo 'CONFIG_IPV6_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
-            sed -i '/^CONFIG_IP_NF_TARGET_ECN=/d' ./common/arch/arm64/configs/gki_defconfig
-            echo 'CONFIG_IP_NF_TARGET_ECN=y' >> ./common/arch/arm64/configs/gki_defconfig
             if [ "${{ github.event.inputs.TCP_ALGO }}" == "bbr" ]; then
               sed -i '/^CONFIG_DEFAULT_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
               echo 'CONFIG_DEFAULT_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
