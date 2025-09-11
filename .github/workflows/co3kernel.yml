@@ -159,6 +159,7 @@ jobs:
           fi
           if [ "${{ github.event.inputs.O3_COMPILE }}" == "Y" ]; then
             echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
+            sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
           fi
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
