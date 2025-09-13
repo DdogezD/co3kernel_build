@@ -33,7 +33,7 @@ on:
         options:
           - 'westwood'
           - 'bbr'
-        default: 'westwood'
+        default: 'bbr'
       BAD_OPT:
         description: "不稳定的优化"
         required: true
@@ -138,6 +138,11 @@ jobs:
             patch -p1 < ssg_update.patch || true
             patch -p1 < blk_disable_iostats.patch || true
             patch -p1 < do_not_collect_iostats.patch || true
+            patch -p1 < bbr3.patch || true
+            patch -p1 < bbr3_6.14_1.patch || true
+            patch -p1 < bbr3_6.14_2.patch || true
+            patch -p1 < bbr3_6.15.patch || true
+            patch -p1 < bbr3_oplus.patch || true
           fi
           rm -rf kernel_workspace/co3kernel_build
 
