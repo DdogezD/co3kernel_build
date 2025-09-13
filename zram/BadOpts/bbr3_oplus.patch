@@ -1,0 +1,33 @@
+From c0fa0e17ad33cb7c9ec0c1645da3c9d30dbc29ed Mon Sep 17 00:00:00 2001
+From: brokestar233 <3765589194@qq.com>
+Date: Sat, 26 Jul 2025 21:06:16 +0800
+Subject: [PATCH] module: Add oplus_network_tuning to blacklist for BBR3
+ compatibility
+
+After updating to BBR3, applications using the old BBR module may
+reference a modified BBR struct in the kernel, causing an oops. This
+patch adds "oplus_network_tuning" to the custom module blacklist when
+CONFIG_TCP_CONG_BBR is built-in, preventing the outdated module from
+being loaded and ensuring compatibility with the updated BBR3 struct.
+
+Fucking you oplus!
+
+Signed-off-by: brokestar233 <3765589194@qq.com>
+---
+ kernel/module/main.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/kernel/module/main.c b/kernel/module/main.c
+index d5af4ecf8c069..4212bf314b3e3 100644
+--- a/kernel/module/main.c
++++ b/kernel/module/main.c
+@@ -2395,6 +2395,9 @@ static char *custom_module_blacklist[] = {
+ #if IS_BUILTIN(CONFIG_ZSMALLOC)
+     "zsmalloc",
+ #endif
++#if IS_BUILTIN(CONFIG_TCP_CONG_BBR)
++    "oplus_network_tuning",
++#endif
+ };
+ 
+ static bool blacklisted(const char *module_name)
