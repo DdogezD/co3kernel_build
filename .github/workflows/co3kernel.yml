@@ -153,6 +153,8 @@ jobs:
         run: |
           cd kernel_workspace/kernel_platform
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_MQ_IOSCHED_SSG=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
           if [ "${{ github.event.inputs.TMPFS_XATTR }}" == "Y" ]; then
             sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
