@@ -1,9 +1,3 @@
-From c0fa0e17ad33cb7c9ec0c1645da3c9d30dbc29ed Mon Sep 17 00:00:00 2001
-From: brokestar233 <3765589194@qq.com>
-Date: Sat, 26 Jul 2025 21:06:16 +0800
-Subject: [PATCH] module: Add oplus_network_tuning to blacklist for BBR3
- compatibility
-
 After updating to BBR3, applications using the old BBR module may
 reference a modified BBR struct in the kernel, causing an oops. This
 patch adds "oplus_network_tuning" to the custom module blacklist when
@@ -12,22 +6,43 @@ being loaded and ensuring compatibility with the updated BBR3 struct.
 
 Fucking you oplus!
 
-Signed-off-by: brokestar233 <3765589194@qq.com>
+thanks pzqqt and brokestar!
 ---
- kernel/module/main.c | 3 +++
- 1 file changed, 3 insertions(+)
 
-diff --git a/kernel/module/main.c b/kernel/module/main.c
-index d5af4ecf8c069..4212bf314b3e3 100644
---- a/kernel/module/main.c
-+++ b/kernel/module/main.c
-@@ -2395,6 +2395,9 @@ static char *custom_module_blacklist[] = {
- #if IS_BUILTIN(CONFIG_ZSMALLOC)
-     "zsmalloc",
- #endif
-+#if IS_BUILTIN(CONFIG_TCP_CONG_BBR)
-+    "oplus_network_tuning",
-+#endif
- };
+diff --git a/kernel/module.c b/kernel/module.c
+--- a/kernel/module.c
++++ b/kernel/module.c
+@@ -3584,6 +3584,9 @@
  
+ /* module_blacklist is a comma-separated list of module names */
+ static char *module_blacklist;
++static char *custom_module_blacklist[] = {
++	"oplus_network_tuning",
++};
  static bool blacklisted(const char *module_name)
+ {
+ 	const char *p;
+@@ -3590,4 +3593,5 @@
+ 	size_t len;
++	int i;
+ 
+ 	if (!module_blacklist)
+ 		return false;
+@@ -3594,3 +3598,4 @@
++		goto custom_blacklist;
+ 
+ 	for (p = module_blacklist; *p; p += len) {
+ 		len = strcspn(p, ",");
+@@ -3599,6 +3604,12 @@
+ 		if (p[len] == ',')
+ 			len++;
+ 	}
++
++custom_blacklist:
++	for (i = 0; i < ARRAY_SIZE(custom_module_blacklist); i++)
++		if (!strcmp(module_name, custom_module_blacklist[i]))
++			return true;
++
+ 	return false;
+ }
+ core_param(module_blacklist, module_blacklist, charp, 0400);
