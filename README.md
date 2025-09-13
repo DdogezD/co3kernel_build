@@ -3,9 +3,11 @@
 这是为 **Hedwig (OnePlus Open)** 编译的内核，包含以下特性：
 
 ---
-**大量性能优化**
+**大量性能调优**
 
-合并了部分来自 sultan, pzqqt, brokestar 等内核开发者的优化
+合并了部分来自 **sultan, arter97, pzqqt, brokestar, ztc1997, hfdem** 等内核开发者的优化
+
+*排名不分先后*
 
 ---
 **使用最小作用域 hooks 的 KernelSU Next**
@@ -20,9 +22,14 @@
 可使用 [Mountify](https://github.com/backslashxx/mountify) 完成模块挂载
 
 ---
-**网络相关配置优化**
+**网络相关调优**
  
 可选 bbr & westwood 网络拥塞算法 (默认 westwood)
+
+---
+**I/O 调速器优化**
+
+io调速器可选 ssg
 
 ---
 **zram 性能优化**
