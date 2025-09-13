@@ -47,7 +47,7 @@ diff --git a/block/Makefile b/block/Makefile
 index b9db5d4edfc8a..bdd76e25c5c8e 100644
 --- a/block/Makefile
 +++ b/block/Makefile
-@@ -27,6 +27,10 @@ obj-$(CONFIG_MQ_IOSCHED_KYBER)	+= kyber-iosched.o
+@@ -25,6 +25,10 @@ obj-$(CONFIG_MQ_IOSCHED_KYBER)	+= kyber-iosched.o
  bfq-y				:= bfq-iosched.o bfq-wf2q.o bfq-cgroup.o
  obj-$(CONFIG_IOSCHED_BFQ)	+= bfq.o
  
@@ -55,9 +55,9 @@ index b9db5d4edfc8a..bdd76e25c5c8e 100644
 +ssg-$(CONFIG_MQ_IOSCHED_SSG_CGROUP)	+= ssg-cgroup.o
 +obj-$(CONFIG_MQ_IOSCHED_SSG)	+= ssg.o
 +
- obj-$(CONFIG_BLK_CMDLINE_PARSER)	+= cmdline-parser.o
  obj-$(CONFIG_BLK_DEV_INTEGRITY) += bio-integrity.o blk-integrity.o
  obj-$(CONFIG_BLK_DEV_INTEGRITY_T10)	+= t10-pi.o
+ obj-$(CONFIG_BLK_MQ_PCI)	+= blk-mq-pci.o
 diff --git a/block/elevator.c b/block/elevator.c
 index f762b2af1d2ac..fb21e1041dc61 100644
 --- a/block/elevator.c
