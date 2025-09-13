@@ -122,7 +122,6 @@ jobs:
           patch -p1 < lz4_1.10.0.patch || true
           if [ "${{ github.event.inputs.BAD_OPT }}" == "Y" ]; then
             cp ../../co3kernel_build/zram/BadOpts/*.patch ./
-            patch -p1 < cortex-a510.patch || true
             patch -p1 < opt_memutil.patch || true
             patch -p1 < opt_memcpy.patch || true
             patch -p1 < opt_memmove.patch || true
