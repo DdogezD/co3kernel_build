@@ -1205,7 +1205,7 @@ index 146792cd26fed..a81e6cbe6618b 100644
 -	struct bbr *bbr = inet_csk_ca(sk);
 -
 -	bbr->mode = BBR_PROBE_BW;
--	bbr->cycle_idx = CYCLE_LEN - 1 - get_random_u32_below(bbr_cycle_rand);
+-	bbr->cycle_idx = CYCLE_LEN - 1 - prandom_u32_max(bbr_cycle_rand);
 -	bbr_advance_cycle_phase(sk);	/* flip to next phase of gain cycle */
 -}
 -
@@ -2203,10 +2203,10 @@ index 146792cd26fed..a81e6cbe6618b 100644
 +
 +	/* Decide the random round-trip bound for wait until probe: */
 +	bbr->rounds_since_probe =
-+		get_random_u32_below(bbr_param(sk, bw_probe_rand_rounds));
++		prandom_u32_max(bbr_param(sk, bw_probe_rand_rounds));
 +	/* Decide the random wall clock bound for wait until probe: */
 +	bbr->probe_wait_us = bbr_param(sk, bw_probe_base_us) +
-+			     get_random_u32_below(bbr_param(sk, bw_probe_rand_us));
++			     prandom_u32_max(bbr_param(sk, bw_probe_rand_us));
 +}
 +
 +static void bbr_set_cycle_idx(struct sock *sk, int cycle_idx)
