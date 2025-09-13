@@ -1,40 +1,41 @@
-From e0c3c1f9c0857a717335c9cd0d26cd7c05da5b06 Mon Sep 17 00:00:00 2001
-From: darkhz <kmachanwenw@gmail.com>
-Date: Thu, 1 Aug 2024 20:47:55 +0300
-Subject: [PATCH] mm: Do not reserve memory for users
-
-Waste of memory.
----
- mm/mmap.c | 5 -----
- mm/util.c | 2 +-
- 2 files changed, 1 insertion(+), 6 deletions(-)
-
 diff --git a/mm/mmap.c b/mm/mmap.c
-index 4122b5381719..461f0ccd81c4 100644
 --- a/mm/mmap.c
 +++ b/mm/mmap.c
-@@ -3981,11 +3981,6 @@ void __init mmap_init(void)
+@@ -3776,11 +3776,6 @@
   */
  static int init_user_reserve(void)
  {
 -	unsigned long free_kbytes;
 -
--	free_kbytes = K(global_zone_page_state(NR_FREE_PAGES));
+-	free_kbytes = global_zone_page_state(NR_FREE_PAGES) << (PAGE_SHIFT - 10);
 -
 -	sysctl_user_reserve_kbytes = min(free_kbytes / 32, 1UL << 17);
  	return 0;
  }
  subsys_initcall(init_user_reserve);
+@@ -3797,11 +3792,6 @@
+  */
+ static int init_admin_reserve(void)
+ {
+-	unsigned long free_kbytes;
+-
+-	free_kbytes = global_zone_page_state(NR_FREE_PAGES) << (PAGE_SHIFT - 10);
+-
+-	sysctl_admin_reserve_kbytes = min(free_kbytes / 32, 1UL << 13);
+ 	return 0;
+ }
+ subsys_initcall(init_admin_reserve);
 diff --git a/mm/util.c b/mm/util.c
-index b96ab676635e..9a8cb5e30c9b 100644
 --- a/mm/util.c
 +++ b/mm/util.c
-@@ -827,7 +827,7 @@ int sysctl_overcommit_memory __read_mostly = OVERCOMMIT_GUESS;
+@@ -870,8 +870,8 @@
  int sysctl_overcommit_ratio __read_mostly = 50;
  unsigned long sysctl_overcommit_kbytes __read_mostly;
  int sysctl_max_map_count __read_mostly = DEFAULT_MAX_MAP_COUNT;
 -unsigned long sysctl_user_reserve_kbytes __read_mostly = 1UL << 17; /* 128MB */
+-unsigned long sysctl_admin_reserve_kbytes __read_mostly = 1UL << 13; /* 8MB */
 +unsigned long sysctl_user_reserve_kbytes __read_mostly; /* 0MB */
- unsigned long sysctl_admin_reserve_kbytes __read_mostly; /* 0MB */
++unsigned long sysctl_admin_reserve_kbytes __read_mostly; /* 0MB */
  
  int overcommit_ratio_handler(struct ctl_table *table, int write, void *buffer,
+ 		size_t *lenp, loff_t *ppos)
