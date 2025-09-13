@@ -1,0 +1,47 @@
+From 4d4ff1bab87a5718dde1e43525c45bab24bca4d1 Mon Sep 17 00:00:00 2001
+From: ReaperSigma <vidium400@gmail.com>
+Date: Sat, 23 Dec 2023 18:56:54 +0000
+Subject: [PATCH] UPSTREAM: port ssg io/scheduler to 5.15
+
+---
+ block/ssg-iosched.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/block/ssg-iosched.c b/block/ssg-iosched.c
+index a103ec6bfbdd2..2a4e64fd5a990 100755
+--- a/block/ssg-iosched.c
++++ b/block/ssg-iosched.c
+@@ -27,6 +27,8 @@
+ #include "blk-mq-sched.h"
+ #include "ssg-cgroup.h"
+ 
++#include <trace/events/block.h>
++
+ #if IS_ENABLED(CONFIG_BLK_SEC_STATS)
+ extern void blk_sec_stats_account_init(struct request_queue *q);
+ extern void blk_sec_stats_account_exit(struct elevator_queue *eq);
+@@ -678,6 +680,8 @@ static void ssg_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
+ 	struct request_queue *q = hctx->queue;
+ 	struct ssg_data *ssg = q->elevator->elevator_data;
+ 	const int data_dir = rq_data_dir(rq);
++	LIST_HEAD(free);
++	INIT_LIST_HEAD(&free);
+ 
+ 
+ 	/*
+@@ -686,10 +690,12 @@ static void ssg_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
+ 	 */
+ 	blk_req_zone_write_unlock(rq);
+ 
+-	if (blk_mq_sched_try_insert_merge(q, rq))
+-		return;
++	if (blk_mq_sched_try_insert_merge(q, rq, &free)){
++			blk_mq_free_requests(&free);
++			return;
++	}
+ 
+-	blk_mq_sched_request_inserted(rq);
++	trace_block_rq_insert(rq);
+ 
+ 	if (at_head || blk_rq_is_passthrough(rq)) {
+ 		if (at_head)
