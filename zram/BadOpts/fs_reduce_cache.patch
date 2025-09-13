@@ -1,0 +1,25 @@
+From a1d01c0abeab3c5f373b9dad3925623282d5a624 Mon Sep 17 00:00:00 2001
+From: Tyler Nijmeh <tylernij@gmail.com>
+Date: Sat, 18 May 2019 14:38:17 -0700
+Subject: [PATCH] fs: Reduce cache pressure
+
+We can more utilize our available RAM better like this.
+
+Signed-off-by: Tyler Nijmeh <tylernij@gmail.com>
+---
+ fs/dcache.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/dcache.c b/fs/dcache.c
+index 1f4d21b43e591..4794feace86be 100644
+--- a/fs/dcache.c
++++ b/fs/dcache.c
+@@ -71,7 +71,7 @@
+  * If no ancestor relationship:
+  * arbitrary, since it's serialized on rename_lock
+  */
+-int sysctl_vfs_cache_pressure __read_mostly = 100;
++int sysctl_vfs_cache_pressure __read_mostly = 50;
+ EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
+ 
+ __cacheline_aligned_in_smp DEFINE_SEQLOCK(rename_lock);

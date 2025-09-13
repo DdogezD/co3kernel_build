@@ -1,0 +1,28 @@
+From 0b07e8074d67b8731a2b0455641379ac610bb567 Mon Sep 17 00:00:00 2001
+From: epicmann24 <nickypearson862000@gmail.com>
+Date: Tue, 12 Aug 2025 10:27:35 +0800
+Subject: [PATCH] Disable CACHE_HOT_BUDDY
+
+In a similar vein to setting sysctl_sched_migration_cost to zero, disable
+CACHE_HOT_BUDDY to better leverage the DynamIQ Shared Unit (DSU). With the
+DSU, L2$ and L3$ locality isn't lost when a task is migrated to another
+intra-DSU core.
+
+Credits to Sultan
+---
+ kernel/sched/features.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/features.h b/kernel/sched/features.h
+index eb315c739dce8..48739cc14289f 100644
+--- a/kernel/sched/features.h
++++ b/kernel/sched/features.h
+@@ -19,7 +19,7 @@ SCHED_FEAT(NEXT_BUDDY, false)
+  * Consider buddies to be cache hot, decreases the likeliness of a
+  * cache buddy being migrated away, increases cache locality.
+  */
+-SCHED_FEAT(CACHE_HOT_BUDDY, true)
++SCHED_FEAT(CACHE_HOT_BUDDY, false)
+ 
+ /*
+  * Allow wakeup-time preemption of the current task:
