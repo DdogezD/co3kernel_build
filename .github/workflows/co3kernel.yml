@@ -127,8 +127,8 @@ jobs:
             patch -p1 < opt_memcpy.patch || true
             patch -p1 < opt_memmove.patch || true
             patch -p1 < opt_memset.patch || true
-            patch -p1 < mm_dont_reserve_user.patch || true
-            patch -p1 < mm_dont_reserve_admin.patch || true
+           #patch -p1 < mm_dont_reserve_user.patch || true
+           #patch -p1 < mm_dont_reserve_admin.patch || true
           fi
           rm -rf kernel_workspace/co3kernel_build
 
