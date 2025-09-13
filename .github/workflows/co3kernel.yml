@@ -132,6 +132,8 @@ jobs:
             patch -p1 < fs_reduce_cache.patch || true
             patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
             patch -p1 < tweak_rwsem.patch || true
+            patch -p1 < ssg.patch || true
+            patch -p1 < ssg_update.patch || true
           fi
           rm -rf kernel_workspace/co3kernel_build
 
