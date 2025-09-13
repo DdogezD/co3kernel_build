@@ -133,6 +133,7 @@ jobs:
             patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
             patch -p1 < tweak_rwsem.patch || true
             patch -p1 < ssg.patch || true
+            patch -p1 < ssg_5.15.patch || true
             patch -p1 < ssg_update.patch || true
           fi
           rm -rf kernel_workspace/co3kernel_build
@@ -157,6 +158,7 @@ jobs:
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_MQ_IOSCHED_SSG=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_MQ_SSG_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
           if [ "${{ github.event.inputs.TMPFS_XATTR }}" == "Y" ]; then
             sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
