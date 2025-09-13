@@ -1,0 +1,24 @@
+From e5653b87dc62bae9294ece6f7ba361d61a22fb7e Mon Sep 17 00:00:00 2001
+From: HolyAngel <slverwolf@gmail.com>
+Date: Fri, 3 Apr 2020 21:13:44 -0500
+Subject: [PATCH] include: blkdev.h: Do not collect I/O statistics
+
+This adds a great deal of latency to block requests due to disabling
+preemption temporarily during statistics collection.
+---
+ include/linux/blkdev.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index 4dc77c84ba15..ce3add2253ca 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -608,7 +608,7 @@ struct request_queue {
+ #define QUEUE_FLAG_HCTX_ACTIVE	28	/* at least one blk-mq hctx is active */
+ #define QUEUE_FLAG_NOWAIT       29	/* device supports NOWAIT */
+ 
+-#define QUEUE_FLAG_MQ_DEFAULT	((1 << QUEUE_FLAG_IO_STAT) |		\
++#define QUEUE_FLAG_MQ_DEFAULT	((0 << QUEUE_FLAG_IO_STAT) |		\
+ 				 (1 << QUEUE_FLAG_SAME_COMP) |		\
+ 				 (1 << QUEUE_FLAG_NOWAIT))
+ 
