@@ -128,9 +128,6 @@ jobs:
             patch -p1 < opt_memset.patch || true
             patch -p1 < opt_cpuidle.patch || true
             patch -p1 < mm_dont_reserve.patch || true
-            patch -p1 < mm_disable_watermark_boosting.patch || true
-            patch -p1 < mm_opt_RCU_read_lock.patch || true
-            patch -p1 < mbcache_speed_up.patch || true
             patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
             patch -p1 < fs_reduce_cache.patch || true
             patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
