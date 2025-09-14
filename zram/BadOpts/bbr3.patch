@@ -161,19 +161,19 @@ index 5cc42d70449e..c410394128b6 100644
  };
  
  struct tcp_congestion_ops {
-@@ -1092,8 +1122,10 @@ struct tcp_congestion_ops {
- 	u32  (*undo_cwnd)(struct sock *sk);
+@@ -1062,8 +1062,10 @@
  	/* hook for packet ack accounting (optional) */
  	void (*pkts_acked)(struct sock *sk, const struct ack_sample *sample);
+ 
 -	/* override sysctl_tcp_min_tso_segs */
 -	u32 (*min_tso_segs)(struct sock *sk);
 +	/* pick target number of segments per TSO/GSO skb (optional): */
 +	u32 (*tso_segs)(struct sock *sk, unsigned int mss_now);
 +	/* react to a specific lost skb (optional) */
 +	void (*skb_marked_lost)(struct sock *sk, const struct sk_buff *skb);
- 	/* returns the multiplier used in tcp_sndbuf_expand (optional) */
- 	u32 (*sndbuf_expand)(struct sock *sk);
+ 
  	/* call when packets are delivered to update cwnd and pacing rate,
+ 	 * after all the ca_state processing. (optional)
 @@ -1141,6 +1173,14 @@ static inline char *tcp_ca_get_name_by_key(u32 key, char *buffer)
  }
  #endif
