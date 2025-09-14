@@ -161,19 +161,19 @@ index 5cc42d70449e..c410394128b6 100644
  };
  
  struct tcp_congestion_ops {
-@@ -1062,8 +1062,10 @@
+@@ -1092,8 +1122,10 @@ struct tcp_congestion_ops {
+ 	u32  (*undo_cwnd)(struct sock *sk);
  	/* hook for packet ack accounting (optional) */
  	void (*pkts_acked)(struct sock *sk, const struct ack_sample *sample);
- 
 -	/* override sysctl_tcp_min_tso_segs */
 -	u32 (*min_tso_segs)(struct sock *sk);
 +	/* pick target number of segments per TSO/GSO skb (optional): */
 +	u32 (*tso_segs)(struct sock *sk, unsigned int mss_now);
 +	/* react to a specific lost skb (optional) */
 +	void (*skb_marked_lost)(struct sock *sk, const struct sk_buff *skb);
- 
+ 	/* returns the multiplier used in tcp_sndbuf_expand (optional) */
+ 	u32 (*sndbuf_expand)(struct sock *sk);
  	/* call when packets are delivered to update cwnd and pacing rate,
- 	 * after all the ca_state processing. (optional)
 @@ -1141,6 +1173,14 @@ static inline char *tcp_ca_get_name_by_key(u32 key, char *buffer)
  }
  #endif
@@ -850,7 +850,7 @@ index 6274462b86b4..d15a110231fe 100644
 -	struct bbr *bbr = inet_csk_ca(sk);
 -
 -	if (bbr->prev_ca_state < TCP_CA_Recovery && bbr->mode != BBR_PROBE_RTT)
--		bbr->prior_cwnd = tp->snd_cwnd;  /* this cwnd is good enough */
+-		bbr->prior_cwnd = tcp_snd_cwnd(tp);  /* this cwnd is good enough */
 -	else  /* loss recovery or BBR_PROBE_RTT have temporarily cut cwnd */
 -		bbr->prior_cwnd = max(bbr->prior_cwnd, tp->snd_cwnd);
 +	return  bbr_tso_segs_generic(sk, tp->mss_cache, GSO_LEGACY_MAX_SIZE);
@@ -963,7 +963,7 @@ index 6274462b86b4..d15a110231fe 100644
 -	struct tcp_sock *tp = tcp_sk(sk);
 -	struct bbr *bbr = inet_csk_ca(sk);
 -	u8 prev_state = bbr->prev_ca_state, state = inet_csk(sk)->icsk_ca_state;
--	u32 cwnd = tp->snd_cwnd;
+-	u32 cwnd = tcp_snd_cwnd(tp);
 -
 -	/* An ACK for P pkts should release at most 2*P packets. We do this
 -	 * in two steps. First, here we deduct the number of lost packets.
@@ -1005,7 +1005,7 @@ index 6274462b86b4..d15a110231fe 100644
  {
  	struct tcp_sock *tp = tcp_sk(sk);
  	struct bbr *bbr = inet_csk_ca(sk);
--	u32 cwnd = tp->snd_cwnd, target_cwnd = 0;
+-	u32 cwnd = tcp_snd_cwnd(tp), target_cwnd = 0;
 +	u32 target_cwnd = 0;
  
  	if (!acked)
@@ -1043,10 +1043,10 @@ index 6274462b86b4..d15a110231fe 100644
  
 +	cwnd = max_t(u32, cwnd, bbr_param(sk, cwnd_min_target));
  done:
--	tp->snd_cwnd = min(cwnd, tp->snd_cwnd_clamp);	/* apply global cap */
+-	tcp_snd_cwnd_set(tp, min(cwnd, tp->snd_cwnd_clamp));	/* apply global cap */
 +	tcp_snd_cwnd_set(tp, min(cwnd, tp->snd_cwnd_clamp));  /* global cap */
  	if (bbr->mode == BBR_PROBE_RTT)  /* drain queue, refresh min_rtt */
--		tp->snd_cwnd = min(tp->snd_cwnd, bbr_cwnd_min_target);
+-		tcp_snd_cwnd_set(tp, min(tcp_snd_cwnd(tp), bbr_cwnd_min_target));
 -}
 -
 -/* End cycle phase if it's time and/or we hit the phase's in-flight target. */
