@@ -123,23 +123,19 @@ jobs:
           echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TCP_CONG_ADVANCED=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TCP_CONG_HTCP=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TCP_CONG_BIC=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TCP_CONG_WESTWOOD=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_WESTWOOD=n' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TCP_CONG_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_TCP_CONG_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_NET_SCH_FQ=/d' ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BBR2=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_NET_SCH_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_DEFAULT_BBR=/d' ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_DEFAULT_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_DEFAULT_BBR2=y' >> ./common/arch/arm64/configs/gki_defconfig
+
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
+
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
       - name: Spoof Linux version
