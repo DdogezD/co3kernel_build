@@ -24,7 +24,7 @@
 ---
 **网络相关调优**
  
-可选 bbr & westwood 网络拥塞算法 (默认 westwood)
+使用 bbr+fq_codel
 
 ---
 **I/O 调速器优化**
