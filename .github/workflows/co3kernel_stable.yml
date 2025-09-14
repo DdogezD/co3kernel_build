@@ -96,9 +96,6 @@ jobs:
           patch -p1 < ssg.patch || true
           patch -p1 < ssg_5.15.patch || true
           patch -p1 < ssg_update.patch || true
-          patch -p1 < bbr2.patch || true
-          patch -p1 < bbr_oplus.patch || true
-          patch -p1 < ntfs3.patch || true
           rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next
@@ -127,15 +124,12 @@ jobs:
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_WESTWOOD=n' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_TCP_CONG_BBR2=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_NET_SCH_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_DEFAULT_BBR2=y' >> ./common/arch/arm64/configs/gki_defconfig
-
+          echo 'CONFIG_DEFAULT_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
-
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
       - name: Spoof Linux version
