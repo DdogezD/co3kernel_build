@@ -1,0 +1,27 @@
+From 3f8ad50a9e43b6a59070e6c9c5eec79626f81095 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Tue, 29 Jun 2021 06:53:14 -0700
+Subject: [PATCH] tcp: change ICSK_CA_PRIV_SIZE definition
+
+Instead of a magic number (13 currently) and having
+to change it every other year, use sizeof_field() macro.
+
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/net/inet_connection_sock.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/net/inet_connection_sock.h b/include/net/inet_connection_sock.h
+index 3c8c59471bc19..b06c2d02ec84e 100644
+--- a/include/net/inet_connection_sock.h
++++ b/include/net/inet_connection_sock.h
+@@ -135,7 +135,7 @@ struct inet_connection_sock {
+ 	u32			  icsk_user_timeout;
+ 
+ 	u64			  icsk_ca_priv[104 / sizeof(u64)];
+-#define ICSK_CA_PRIV_SIZE      (13 * sizeof(u64))
++#define ICSK_CA_PRIV_SIZE	  sizeof_field(struct inet_connection_sock, icsk_ca_priv)
+ };
+ 
+ #define ICSK_TIME_RETRANS	1	/* Retransmit timer */
