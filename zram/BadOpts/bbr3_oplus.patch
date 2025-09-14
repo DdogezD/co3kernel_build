@@ -12,7 +12,9 @@ thanks pzqqt and brokestar!
 diff --git a/kernel/module.c b/kernel/module.c
 --- a/kernel/module.c
 +++ b/kernel/module.c
-@@ -3584,6 +3584,9 @@
+@@ -3582,17 +3582,21 @@
+ 	return 0;
+ }
  
  /* module_blacklist is a comma-separated list of module names */
  static char *module_blacklist;
@@ -22,18 +24,18 @@ diff --git a/kernel/module.c b/kernel/module.c
  static bool blacklisted(const char *module_name)
  {
  	const char *p;
-@@ -3590,4 +3593,5 @@
  	size_t len;
 +	int i;
  
  	if (!module_blacklist)
- 		return false;
-@@ -3594,3 +3598,4 @@
+-		return false;
 +		goto custom_blacklist;
  
  	for (p = module_blacklist; *p; p += len) {
  		len = strcspn(p, ",");
-@@ -3599,6 +3604,12 @@
+ 		if (strlen(module_name) == len && !memcmp(module_name, p, len))
+ 			return true;
+@@ -3599,8 +3603,14 @@
  		if (p[len] == ',')
  			len++;
  	}
@@ -46,3 +48,5 @@ diff --git a/kernel/module.c b/kernel/module.c
  	return false;
  }
  core_param(module_blacklist, module_blacklist, charp, 0400);
+ 
+ static struct module *layout_and_allocate(struct load_info *info, int flags)
