@@ -120,7 +120,6 @@ jobs:
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_MQ_IOSCHED_SSG=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
-          sed -i '/^CONFIG_TMPFS_XATTR=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
