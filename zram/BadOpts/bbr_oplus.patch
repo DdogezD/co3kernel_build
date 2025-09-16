@@ -45,3 +45,12 @@ diff --git a/kernel/module.c b/kernel/module.c
  	return false;
  }
  core_param(module_blacklist, module_blacklist, charp, 0400);
+@@ -4064,7 +4064,7 @@
+ 	 * if it's blacklisted.
+ 	 */
+ 	if (blacklisted(info->name)) {
+-		err = -EPERM;
++		// err = -EPERM;
+ 		pr_err("Module %s is blacklisted\n", info->name);
+ 		goto free_copy;
+ 	}
