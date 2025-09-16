@@ -97,7 +97,6 @@ jobs:
           patch -p1 < ssg_5.15.patch || true
           patch -p1 < ssg_update.patch || true
           patch -p1 < bbrplus_5.15.patch || true
-          patch -p1 < bbr_oplus.patch || true
           rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next
