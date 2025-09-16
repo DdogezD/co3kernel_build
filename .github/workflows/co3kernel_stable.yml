@@ -93,10 +93,11 @@ jobs:
           patch -p1 < tweak_rwsem.patch || true
           patch -p1 < blk_disable_iostats.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
-          patch -p1 < ssg.patch || true
-          patch -p1 < ssg_5.15.patch || true
-          patch -p1 < ssg_update.patch || true
-          patch -p1 < bbr_oplus.patch || true
+
+          #patch -p1 < ssg.patch || true
+          #patch -p1 < ssg_5.15.patch || true
+          #patch -p1 < ssg_update.patch || true
+
           rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next
@@ -117,8 +118,8 @@ jobs:
         run: |
           cd kernel_workspace/kernel_platform
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_MQ_IOSCHED_SSG=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_MQ_IOSCHED_SSG=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_MQ_IOSCHED_SSG_CGROUP=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
