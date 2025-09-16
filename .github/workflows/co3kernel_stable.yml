@@ -93,11 +93,10 @@ jobs:
           patch -p1 < tweak_rwsem.patch || true
           patch -p1 < blk_disable_iostats.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
-
+          patch -p1 < bbrplus_5.15_original.patch || true
           #patch -p1 < ssg.patch || true
           #patch -p1 < ssg_5.15.patch || true
           #patch -p1 < ssg_update.patch || true
-
           rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next
@@ -125,8 +124,7 @@ jobs:
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_WESTWOOD=n' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_TCP_CONG_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_DEFAULT_BBR=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_NET_SCH_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_NET_SCH_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_DEFAULT_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
