@@ -1,0 +1,90 @@
+From 61b8539f7720f77d9da2c137cfb01512d1c8af65 Mon Sep 17 00:00:00 2001
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Wed, 20 Apr 2022 01:15:01 -0700
+Subject: [PATCH] sched/core: Skip superfluous acquire barrier in ttwu
+
+ttwu_runnable() unconditionally locks the task's runqueue lock, which
+implies a full barrier across the lock and unlock, so the acquire barrier
+after the control dependency is only needed when the task isn't on the
+runqueue.
+
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ kernel/sched/core.c | 59 ++++++++++++++++++++++++---------------------
+ 1 file changed, 32 insertions(+), 27 deletions(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 0887c7154133..a2b0c149473b 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -4157,38 +4157,43 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
+ 	 * A similar smb_rmb() lives in try_invoke_on_locked_down_task().
+ 	 */
+ 	smp_rmb();
+-	if (READ_ONCE(p->on_rq) && ttwu_runnable(p, wake_flags))
+-		goto unlock;
++	if (READ_ONCE(p->on_rq)) {
++		if (ttwu_runnable(p, wake_flags))
++			goto unlock;
++	} else {
++#ifdef CONFIG_SMP
++		/*
++		 * Ensure we load p->on_cpu _after_ p->on_rq, otherwise it would
++		 * be possible to, falsely, observe p->on_cpu == 0.
++		 *
++		 * One must be running (->on_cpu == 1) in order to remove
++		 * oneself from the runqueue.
++		 *
++		 * __schedule() (switch to task 'p')	try_to_wake_up()
++		 *   STORE p->on_cpu = 1		  LOAD p->on_rq
++		 *   UNLOCK rq->lock
++		 *
++		 * __schedule() (put 'p' to sleep)
++		 *   LOCK rq->lock			  smp_rmb();
++		 *   smp_mb__after_spinlock();
++		 *   STORE p->on_rq = 0			  LOAD p->on_cpu
++		 *
++		 * Pairs with the LOCK+smp_mb__after_spinlock() on rq->lock in
++		 * __schedule().  See the comment for smp_mb__after_spinlock().
++		 *
++		 * Form a control-dep-acquire with p->on_rq == 0 above, to
++		 * ensure schedule()'s deactivate_task() has 'happened' and p
++		 * will no longer care about it's own p->state. See the comment
++		 * in __schedule().
++		 */
++		smp_acquire__after_ctrl_dep();
++#endif
++	}
+ 
+ 	if (READ_ONCE(p->__state) & TASK_UNINTERRUPTIBLE)
+ 		trace_sched_blocked_reason(p);
+ 
+ #ifdef CONFIG_SMP
+-	/*
+-	 * Ensure we load p->on_cpu _after_ p->on_rq, otherwise it would be
+-	 * possible to, falsely, observe p->on_cpu == 0.
+-	 *
+-	 * One must be running (->on_cpu == 1) in order to remove oneself
+-	 * from the runqueue.
+-	 *
+-	 * __schedule() (switch to task 'p')	try_to_wake_up()
+-	 *   STORE p->on_cpu = 1		  LOAD p->on_rq
+-	 *   UNLOCK rq->lock
+-	 *
+-	 * __schedule() (put 'p' to sleep)
+-	 *   LOCK rq->lock			  smp_rmb();
+-	 *   smp_mb__after_spinlock();
+-	 *   STORE p->on_rq = 0			  LOAD p->on_cpu
+-	 *
+-	 * Pairs with the LOCK+smp_mb__after_spinlock() on rq->lock in
+-	 * __schedule().  See the comment for smp_mb__after_spinlock().
+-	 *
+-	 * Form a control-dep-acquire with p->on_rq == 0 above, to ensure
+-	 * schedule()'s deactivate_task() has 'happened' and p will no longer
+-	 * care about it's own p->state. See the comment in __schedule().
+-	 */
+-	smp_acquire__after_ctrl_dep();
+-
+ 	/*
+ 	 * We're doing the wakeup (@success == 1), they did a dequeue (p->on_rq
+ 	 * == 0), which means we need to do an enqueue, change p->state to

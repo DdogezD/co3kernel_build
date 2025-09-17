@@ -1,0 +1,60 @@
+From 747be1631d9aad98d9b6b2bc64a3781c54699c9d Mon Sep 17 00:00:00 2001
+From: Michal Hocko <mhocko@suse.com>
+Date: Fri, 14 Jan 2022 14:07:04 -0800
+Subject: [PATCH] BACKPORT: mm/vmalloc: be more explicit about supported gfp
+ flags.
+
+Commit b7d90e7a5ea8 ("mm/vmalloc: be more explicit about supported gfp
+flags") has been merged prematurely without the rest of the series and
+without addressed review feedback from Neil.  Fix that up now.  Only
+wording is changed slightly.
+
+Link: https://lkml.kernel.org/r/20211122153233.9924-4-mhocko@kernel.org
+Signed-off-by: Michal Hocko <mhocko@suse.com>
+Reviewed-by: Uladzislau Rezki (Sony) <urezki@gmail.com>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Dave Chinner <david@fromorbit.com>
+Cc: Ilya Dryomov <idryomov@gmail.com>
+Cc: Jeff Layton <jlayton@kernel.org>
+Cc: Neil Brown <neilb@suse.de>
+Cc: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+Bug: 425765070
+Bug: 428347289
+Change-Id: Id7a8600db176e71a400e02fb449714d81c9b2744
+(cherry picked from commit 30d3f01191d305c99e8b3f8b1b328fc852270c95)
+[Wei: Resolved minor conflicts in mm/vmalloc.c]
+Signed-off-by: Wei Zhang <wei265.zhang@tcl.corp-partner.google.com>
+(cherry picked from commit 5409baf49bf36a412b3bd9628565cddf037354c0)
+---
+ mm/vmalloc.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 7c531ee48f1a..9af9db1c273a 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -3037,8 +3037,18 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
+  * @caller:		  caller's return address
+  *
+  * Allocate enough pages to cover @size from the page level
+- * allocator with @gfp_mask flags.  Map them into contiguous
+- * kernel virtual space, using a pagetable protection of @prot.
++ * allocator with @gfp_mask flags. Please note that the full set of gfp
++ * flags are not supported. GFP_KERNEL, GFP_NOFS and GFP_NOIO are all
++ * supported.
++ * Zone modifiers are not supported. From the reclaim modifiers
++ * __GFP_DIRECT_RECLAIM is required (aka GFP_NOWAIT is not supported)
++ * and only __GFP_NOFAIL is supported (i.e. __GFP_NORETRY and
++ * __GFP_RETRY_MAYFAIL are not supported).
++ *
++ * __GFP_NOWARN can be used to suppress failures messages.
++ *
++ * Map them into contiguous kernel virtual space, using a pagetable
++ * protection of @prot.
+  *
+  * Return: the address of the area or %NULL on failure
+  */

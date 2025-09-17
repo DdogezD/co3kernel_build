@@ -1,0 +1,61 @@
+From b2102e1e165de1e4debcceb045128515f3875c2c Mon Sep 17 00:00:00 2001
+From: Michal Hocko <mhocko@suse.com>
+Date: Fri, 14 Jan 2022 14:07:11 -0800
+Subject: [PATCH] UPSTREAM: mm: make slab and vmalloc allocators
+ __GFP_NOLOCKDEP aware
+
+sl?b and vmalloc allocators reduce the given gfp mask for their internal
+needs.  For that they use GFP_RECLAIM_MASK to preserve the reclaim
+behavior and constrains.
+
+__GFP_NOLOCKDEP is not a part of that mask because it doesn't really
+control the reclaim behavior strictly speaking.  On the other hand it
+tells the underlying page allocator to disable reclaim recursion
+detection so arguably it should be part of the mask.
+
+Having __GFP_NOLOCKDEP in the mask will not alter the behavior in any
+form so this change is safe pretty much by definition.  It also adds a
+support for this flag to SL?B and vmalloc allocators which will in turn
+allow its use to kvmalloc as well.  A lack of the support has been
+noticed recently in
+
+  http://lkml.kernel.org/r/20211119225435.GZ449541@dread.disaster.area
+
+Link: https://lkml.kernel.org/r/YZ9XtLY4AEjVuiEI@dhcp22.suse.cz
+
+Signed-off-by: Michal Hocko <mhocko@suse.com>
+Reported-by: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Acked-by: Dave Chinner <dchinner@redhat.com>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Dave Chinner <david@fromorbit.com>
+Cc: Ilya Dryomov <idryomov@gmail.com>
+Cc: Jeff Layton <jlayton@kernel.org>
+Cc: Neil Brown <neilb@suse.de>
+Cc: Uladzislau Rezki (Sony) <urezki@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+Bug: 425765070
+Bug: 428347289
+Change-Id: Ie1ceebc5a17b41b8843e1fe07e550afa1d92ffda
+(cherry picked from commit 704687deaae768a818d7da0584ee021793a97684)
+Signed-off-by: Wei Zhang <wei265.zhang@tcl.corp-partner.google.com>
+(cherry picked from commit 76baac4dc7cc93562854c105493c9308faacfdeb)
+---
+ mm/internal.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/internal.h b/mm/internal.h
+index 388763dd7769..775e06ae9586 100644
+--- a/mm/internal.h
++++ b/mm/internal.h
+@@ -21,7 +21,7 @@
+ #define GFP_RECLAIM_MASK (__GFP_RECLAIM|__GFP_HIGH|__GFP_IO|__GFP_FS|\
+ 			__GFP_NOWARN|__GFP_RETRY_MAYFAIL|__GFP_NOFAIL|\
+ 			__GFP_NORETRY|__GFP_MEMALLOC|__GFP_NOMEMALLOC|\
+-			__GFP_ATOMIC)
++			__GFP_ATOMIC|__GFP_NOLOCKDEP)
+ 
+ /* The GFP flags allowed during early boot */
+ #define GFP_BOOT_MASK (__GFP_BITS_MASK & ~(__GFP_RECLAIM|__GFP_IO|__GFP_FS))

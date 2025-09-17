@@ -1,0 +1,244 @@
+From cfac5cadf216a7dca159f3b30a59071f4e2d3e12 Mon Sep 17 00:00:00 2001
+From: Michal Hocko <mhocko@suse.com>
+Date: Fri, 14 Jan 2022 14:07:07 -0800
+Subject: [PATCH] BACKPORT: mm: allow !GFP_KERNEL allocations for kvmalloc
+
+Support for GFP_NO{FS,IO} and __GFP_NOFAIL has been implemented by
+previous patches so we can allow the support for kvmalloc.  This will
+allow some external users to simplify or completely remove their
+helpers.
+
+GFP_NOWAIT semantic hasn't been supported so far but it hasn't been
+explicitly documented so let's add a note about that.
+
+ceph_kvmalloc is the first helper to be dropped and changed to kvmalloc.
+
+Link: https://lkml.kernel.org/r/20211122153233.9924-5-mhocko@kernel.org
+Signed-off-by: Michal Hocko <mhocko@suse.com>
+Reviewed-by: Uladzislau Rezki (Sony) <urezki@gmail.com>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Dave Chinner <david@fromorbit.com>
+Cc: Ilya Dryomov <idryomov@gmail.com>
+Cc: Jeff Layton <jlayton@kernel.org>
+Cc: Neil Brown <neilb@suse.de>
+Cc: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+Bug: 425765070
+Bug: 428347289
+Change-Id: Id62ba271e1d67a0c05a8af441fb4ff29087ddcc7
+(cherry picked from commit a421ef303008b0ceee2cfc625c3246fa7654b0ca)
+[Wei Zhang: Resolved minor conflict in mm/util.c]
+Signed-off-by: Wei Zhang <wei265.zhang@tcl.corp-partner.google.com>
+(cherry picked from commit 75542d77c38c180051561c6c6c89ebaa03b6a531)
+---
+ include/linux/ceph/libceph.h |  1 -
+ mm/util.c                    | 15 ++++-----------
+ net/ceph/buffer.c            |  4 ++--
+ net/ceph/ceph_common.c       | 27 ---------------------------
+ net/ceph/crypto.c            |  2 +-
+ net/ceph/messenger.c         |  2 +-
+ net/ceph/messenger_v2.c      |  2 +-
+ net/ceph/osdmap.c            | 12 ++++++------
+ 8 files changed, 15 insertions(+), 50 deletions(-)
+
+diff --git a/include/linux/ceph/libceph.h b/include/linux/ceph/libceph.h
+index 409d8c29bc4f5..309acbcb5a8a1 100644
+--- a/include/linux/ceph/libceph.h
++++ b/include/linux/ceph/libceph.h
+@@ -295,7 +295,6 @@ extern bool libceph_compatible(void *data);
+ 
+ extern const char *ceph_msg_type_name(int type);
+ extern int ceph_check_fsid(struct ceph_client *client, struct ceph_fsid *fsid);
+-extern void *ceph_kvmalloc(size_t size, gfp_t flags);
+ 
+ struct fs_parameter;
+ struct fc_log;
+diff --git a/mm/util.c b/mm/util.c
+index 3dfc09cd5f382..3be7381804dcf 100644
+--- a/mm/util.c
++++ b/mm/util.c
+@@ -586,13 +586,10 @@ EXPORT_SYMBOL(vm_mmap);
+  * Uses kmalloc to get the memory but if the allocation fails then falls back
+  * to the vmalloc allocator. Use kvfree for freeing the memory.
+  *
+- * Reclaim modifiers - __GFP_NORETRY and __GFP_NOFAIL are not supported.
++ * GFP_NOWAIT and GFP_ATOMIC are not supported, neither is the __GFP_NORETRY modifier.
+  * __GFP_RETRY_MAYFAIL is supported, and it should be used only if kmalloc is
+  * preferable to the vmalloc fallback, due to visible performance drawbacks.
+  *
+- * Please note that any use of gfp flags outside of GFP_KERNEL is careful to not
+- * fall back to vmalloc.
+- *
+  * Return: pointer to the allocated memory of %NULL in case of failure
+  */
+ void *kvmalloc_node(size_t size, gfp_t flags, int node)
+@@ -601,13 +598,6 @@ void *kvmalloc_node(size_t size, gfp_t flags, int node)
+ 	void *ret;
+ 	bool use_vmalloc = false;
+ 
+-	/*
+-	 * vmalloc uses GFP_KERNEL for some internal allocations (e.g page tables)
+-	 * so the given set of flags has to be compatible.
+-	 */
+-	if ((flags & GFP_KERNEL) != GFP_KERNEL)
+-		return kmalloc_node(size, flags, node);
+-
+ 	trace_android_vh_kvmalloc_node_use_vmalloc(size, &kmalloc_flags, &use_vmalloc);
+ 	if (use_vmalloc)
+ 		goto use_vmalloc_node;
+@@ -623,6 +613,9 @@ void *kvmalloc_node(size_t size, gfp_t flags, int node)
+ 
+ 		if (!(kmalloc_flags & __GFP_RETRY_MAYFAIL))
+ 			kmalloc_flags |= __GFP_NORETRY;
++
++		/* nofail semantic is implemented by the vmalloc fallback */
++		kmalloc_flags &= ~__GFP_NOFAIL;
+ 	}
+ 
+ 	ret = kmalloc_node(size, kmalloc_flags, node);
+diff --git a/net/ceph/buffer.c b/net/ceph/buffer.c
+index 5622763ad4027..7e51f128045d3 100644
+--- a/net/ceph/buffer.c
++++ b/net/ceph/buffer.c
+@@ -7,7 +7,7 @@
+ 
+ #include <linux/ceph/buffer.h>
+ #include <linux/ceph/decode.h>
+-#include <linux/ceph/libceph.h> /* for ceph_kvmalloc */
++#include <linux/ceph/libceph.h> /* for kvmalloc */
+ 
+ struct ceph_buffer *ceph_buffer_new(size_t len, gfp_t gfp)
+ {
+@@ -17,7 +17,7 @@ struct ceph_buffer *ceph_buffer_new(size_t len, gfp_t gfp)
+ 	if (!b)
+ 		return NULL;
+ 
+-	b->vec.iov_base = ceph_kvmalloc(len, gfp);
++	b->vec.iov_base = kvmalloc(len, gfp);
+ 	if (!b->vec.iov_base) {
+ 		kfree(b);
+ 		return NULL;
+diff --git a/net/ceph/ceph_common.c b/net/ceph/ceph_common.c
+index 97d6ea763e326..9441b4a4912b0 100644
+--- a/net/ceph/ceph_common.c
++++ b/net/ceph/ceph_common.c
+@@ -190,33 +190,6 @@ int ceph_compare_options(struct ceph_options *new_opt,
+ }
+ EXPORT_SYMBOL(ceph_compare_options);
+ 
+-/*
+- * kvmalloc() doesn't fall back to the vmalloc allocator unless flags are
+- * compatible with (a superset of) GFP_KERNEL.  This is because while the
+- * actual pages are allocated with the specified flags, the page table pages
+- * are always allocated with GFP_KERNEL.
+- *
+- * ceph_kvmalloc() may be called with GFP_KERNEL, GFP_NOFS or GFP_NOIO.
+- */
+-void *ceph_kvmalloc(size_t size, gfp_t flags)
+-{
+-	void *p;
+-
+-	if ((flags & (__GFP_IO | __GFP_FS)) == (__GFP_IO | __GFP_FS)) {
+-		p = kvmalloc(size, flags);
+-	} else if ((flags & (__GFP_IO | __GFP_FS)) == __GFP_IO) {
+-		unsigned int nofs_flag = memalloc_nofs_save();
+-		p = kvmalloc(size, GFP_KERNEL);
+-		memalloc_nofs_restore(nofs_flag);
+-	} else {
+-		unsigned int noio_flag = memalloc_noio_save();
+-		p = kvmalloc(size, GFP_KERNEL);
+-		memalloc_noio_restore(noio_flag);
+-	}
+-
+-	return p;
+-}
+-
+ static int parse_fsid(const char *str, struct ceph_fsid *fsid)
+ {
+ 	int i = 0;
+diff --git a/net/ceph/crypto.c b/net/ceph/crypto.c
+index 92d89b3316459..051d22c0e4ad4 100644
+--- a/net/ceph/crypto.c
++++ b/net/ceph/crypto.c
+@@ -147,7 +147,7 @@ void ceph_crypto_key_destroy(struct ceph_crypto_key *key)
+ static const u8 *aes_iv = (u8 *)CEPH_AES_IV;
+ 
+ /*
+- * Should be used for buffers allocated with ceph_kvmalloc().
++ * Should be used for buffers allocated with kvmalloc().
+  * Currently these are encrypt out-buffer (ceph_buffer) and decrypt
+  * in-buffer (msg front).
+  *
+diff --git a/net/ceph/messenger.c b/net/ceph/messenger.c
+index 043cdbb2d9800..259e1ae4039eb 100644
+--- a/net/ceph/messenger.c
++++ b/net/ceph/messenger.c
+@@ -1921,7 +1921,7 @@ struct ceph_msg *ceph_msg_new2(int type, int front_len, int max_data_items,
+ 
+ 	/* front */
+ 	if (front_len) {
+-		m->front.iov_base = ceph_kvmalloc(front_len, flags);
++		m->front.iov_base = kvmalloc(front_len, flags);
+ 		if (m->front.iov_base == NULL) {
+ 			dout("ceph_msg_new can't allocate %d bytes\n",
+ 			     front_len);
+diff --git a/net/ceph/messenger_v2.c b/net/ceph/messenger_v2.c
+index c3d105e59d251..80b1acf815902 100644
+--- a/net/ceph/messenger_v2.c
++++ b/net/ceph/messenger_v2.c
+@@ -308,7 +308,7 @@ static void *alloc_conn_buf(struct ceph_connection *con, int len)
+ 	if (WARN_ON(con->v2.conn_buf_cnt >= ARRAY_SIZE(con->v2.conn_bufs)))
+ 		return NULL;
+ 
+-	buf = ceph_kvmalloc(len, GFP_NOIO);
++	buf = kvmalloc(len, GFP_NOIO);
+ 	if (!buf)
+ 		return NULL;
+ 
+diff --git a/net/ceph/osdmap.c b/net/ceph/osdmap.c
+index 75b738083523f..2823bb3cff55c 100644
+--- a/net/ceph/osdmap.c
++++ b/net/ceph/osdmap.c
+@@ -980,7 +980,7 @@ static struct crush_work *alloc_workspace(const struct crush_map *c)
+ 	work_size = crush_work_size(c, CEPH_PG_MAX_SIZE);
+ 	dout("%s work_size %zu bytes\n", __func__, work_size);
+ 
+-	work = ceph_kvmalloc(work_size, GFP_NOIO);
++	work = kvmalloc(work_size, GFP_NOIO);
+ 	if (!work)
+ 		return NULL;
+ 
+@@ -1190,9 +1190,9 @@ static int osdmap_set_max_osd(struct ceph_osdmap *map, u32 max)
+ 	if (max == map->max_osd)
+ 		return 0;
+ 
+-	state = ceph_kvmalloc(array_size(max, sizeof(*state)), GFP_NOFS);
+-	weight = ceph_kvmalloc(array_size(max, sizeof(*weight)), GFP_NOFS);
+-	addr = ceph_kvmalloc(array_size(max, sizeof(*addr)), GFP_NOFS);
++	state = kvmalloc(array_size(max, sizeof(*state)), GFP_NOFS);
++	weight = kvmalloc(array_size(max, sizeof(*weight)), GFP_NOFS);
++	addr = kvmalloc(array_size(max, sizeof(*addr)), GFP_NOFS);
+ 	if (!state || !weight || !addr) {
+ 		kvfree(state);
+ 		kvfree(weight);
+@@ -1222,7 +1222,7 @@ static int osdmap_set_max_osd(struct ceph_osdmap *map, u32 max)
+ 	if (map->osd_primary_affinity) {
+ 		u32 *affinity;
+ 
+-		affinity = ceph_kvmalloc(array_size(max, sizeof(*affinity)),
++		affinity = kvmalloc(array_size(max, sizeof(*affinity)),
+ 					 GFP_NOFS);
+ 		if (!affinity)
+ 			return -ENOMEM;
+@@ -1503,7 +1503,7 @@ static int set_primary_affinity(struct ceph_osdmap *map, int osd, u32 aff)
+ 	if (!map->osd_primary_affinity) {
+ 		int i;
+ 
+-		map->osd_primary_affinity = ceph_kvmalloc(
++		map->osd_primary_affinity = kvmalloc(
+ 		    array_size(map->max_osd, sizeof(*map->osd_primary_affinity)),
+ 		    GFP_NOFS);
+ 		if (!map->osd_primary_affinity)

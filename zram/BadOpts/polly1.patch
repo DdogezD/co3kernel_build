@@ -1,0 +1,59 @@
+From 2ba19e2a1303f7a7e49790f9ffe6039dde8f5810 Mon Sep 17 00:00:00 2001
+From: Danny Lin <danny@kdrag0n.dev>
+Date: Wed, 31 Jul 2019 22:26:08 -0700
+Subject: [PATCH] kbuild: Add support for LLVM's Polly optimizer
+
+This adds support for compiling the kernel with optimizations offered
+by LLVM's polyhedral loop optimizer known as Polly, which can improve
+performance by improving cache locality in loops. Note that LLVM is not
+compiled with Polly by default -- it must be enabled explicitly.
+
+[ghostrider-reborn]
+- Removed polly DCE as it's no longer supported
+
+Signed-off-by: Adithya R <gh0strider.2k18.reborn@gmail.com>
+---
+ Makefile     | 10 ++++++++++
+ arch/Kconfig |  8 ++++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index 20cc97d61ef2..71d529a0efd2 100644
+--- a/Makefile
++++ b/Makefile
+@@ -799,6 +799,16 @@ else ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
+ KBUILD_CFLAGS += -Os
+ endif
+ 
++ifdef CONFIG_LLVM_POLLY
++KBUILD_CFLAGS	+= -mllvm -polly \
++		   -mllvm -polly-run-inliner \
++		   -mllvm -polly-opt-fusion=max \
++		   -mllvm -polly-ast-use-context \
++		   -mllvm -polly-detect-keep-going \
++		   -mllvm -polly-vectorizer=stripmine \
++		   -mllvm -polly-invariant-load-hoisting
++endif
++
+ # Tell gcc to never replace conditional load with a non-conditional one
+ ifdef CONFIG_CC_IS_GCC
+ # gcc-10 renamed --param=allow-store-data-races=0 to
+diff --git a/arch/Kconfig b/arch/Kconfig
+index 97e62dcb279b..10fcf4451c52 100644
+--- a/arch/Kconfig
++++ b/arch/Kconfig
+@@ -761,6 +761,14 @@ config CFI_PERMISSIVE
+ 
+ 	  If unsure, say N.
+ 
++config LLVM_POLLY
++	bool "Enable LLVM's polyhedral loop optimizer (Polly)"
++	help
++	  This option enables LLVM's polyhedral loop optimizer known as Polly.
++	  Polly is able to optimize various loops throughout the kernel for
++	  maximum cache locality. This requires an LLVM toolchain explicitly
++	  compiled with Polly support.
++
+ config HAVE_ARCH_WITHIN_STACK_FRAMES
+ 	bool
+ 	help

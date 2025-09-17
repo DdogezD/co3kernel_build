@@ -1,0 +1,27 @@
+From b186c1f37a5b68b47382fc849ea9146b166be89f Mon Sep 17 00:00:00 2001
+From: Jason Wang <wangborong@cdjrlc.com>
+Date: Sat, 13 Nov 2021 14:06:18 +0800
+Subject: [PATCH] cpuidle: menu: Fix typo in a comment
+
+The word `these' in a comment is repeated, so drop one.
+
+Signed-off-by: Jason Wang <wangborong@cdjrlc.com>
+[ rjw: Changelog edits ]
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpuidle/governors/menu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpuidle/governors/menu.c b/drivers/cpuidle/governors/menu.c
+index afeb272122c2..f3c9d49f0f2a 100644
+--- a/drivers/cpuidle/governors/menu.c
++++ b/drivers/cpuidle/governors/menu.c
+@@ -34,7 +34,7 @@
+  * 1) Energy break even point
+  * 2) Performance impact
+  * 3) Latency tolerance (from pmqos infrastructure)
+- * These these three factors are treated independently.
++ * These three factors are treated independently.
+  *
+  * Energy break even point
+  * -----------------------

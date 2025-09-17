@@ -1,0 +1,129 @@
+From ebf4da87fadc8dd803280b120b383c5233305d43 Mon Sep 17 00:00:00 2001
+From: Michal Hocko <mhocko@suse.com>
+Date: Fri, 14 Jan 2022 14:06:57 -0800
+Subject: [PATCH] BACKPORT: mm/vmalloc: alloc GFP_NO{FS,IO} for vmalloc
+
+Patch series "extend vmalloc support for constrained allocations", v2.
+
+Based on a recent discussion with Dave and Neil [1] I have tried to
+implement NOFS, NOIO, NOFAIL support for the vmalloc to make life of
+kvmalloc users easier.
+
+A requirement for NOFAIL support for kvmalloc was new to me but this
+seems to be really needed by the xfs code.
+
+NOFS/NOIO was a known and a long term problem which was hoped to be
+handled by the scope API.  Those scope should have been used at the
+reclaim recursion boundaries both to document them and also to remove
+the necessity of NOFS/NOIO constrains for all allocations within that
+scope.  Instead workarounds were developed to wrap a single allocation
+instead (like ceph_kvmalloc).
+
+First patch implements NOFS/NOIO support for vmalloc.  The second one
+adds NOFAIL support and the third one bundles all together into kvmalloc
+and drops ceph_kvmalloc which can use kvmalloc directly now.
+
+[1] http://lkml.kernel.org/r/163184741778.29351.16920832234899124642.stgit@noble.brown
+
+This patch (of 4):
+
+vmalloc historically hasn't supported GFP_NO{FS,IO} requests because
+page table allocations do not support externally provided gfp mask and
+performed GFP_KERNEL like allocations.
+
+Since few years we have scope (memalloc_no{fs,io}_{save,restore}) APIs
+to enforce NOFS and NOIO constrains implicitly to all allocators within
+the scope.  There was a hope that those scopes would be defined on a
+higher level when the reclaim recursion boundary starts/stops (e.g.
+when a lock required during the memory reclaim is required etc.).  It
+seems that not all NOFS/NOIO users have adopted this approach and
+instead they have taken a workaround approach to wrap a single
+[k]vmalloc allocation by a scope API.
+
+These workarounds do not serve the purpose of a better reclaim recursion
+documentation and reduction of explicit GFP_NO{FS,IO} usege so let's
+just provide them with the semantic they are asking for without a need
+for workarounds.
+
+Add support for GFP_NOFS and GFP_NOIO to vmalloc directly.  All internal
+allocations already comply with the given gfp_mask.  The only current
+exception is vmap_pages_range which maps kernel page tables.  Infer the
+proper scope API based on the given gfp mask.
+
+[sfr@canb.auug.org.au: mm/vmalloc.c needs linux/sched/mm.h]
+ Link: https://lkml.kernel.org/r/20211217232641.0148710c@canb.auug.org.au
+
+Link: https://lkml.kernel.org/r/20211122153233.9924-1-mhocko@kernel.org
+Link: https://lkml.kernel.org/r/20211122153233.9924-2-mhocko@kernel.org
+Signed-off-by: Michal Hocko <mhocko@suse.com>
+Signed-off-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Reviewed-by: Uladzislau Rezki (Sony) <urezki@gmail.com>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Cc: Neil Brown <neilb@suse.de>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Ilya Dryomov <idryomov@gmail.com>
+Cc: Jeff Layton <jlayton@kernel.org>
+Cc: Dave Chinner <dchinner@redhat.com>
+Cc: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+Bug: 425765070
+Bug: 428347289
+Change-Id: I6e36c2c23e3320b248529006bebde456d2cddb2e
+(cherry picked from commit 451769ebb7e792c3404db53b3c2a422990de654e)
+[Wei: Resolved minor conflicts in mm/vmalloc.c]
+Signed-off-by: Wei Zhang <wei265.zhang@tcl.corp-partner.google.com>
+(cherry picked from commit eb09b5068df4fc4330b94cd4f30315e726a52630)
+---
+ mm/vmalloc.c | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/mm/vmalloc.c b/mm/vmalloc.c
+index 75235cc6438d..f5adfc94f316 100644
+--- a/mm/vmalloc.c
++++ b/mm/vmalloc.c
+@@ -38,6 +38,7 @@
+ #include <linux/pgtable.h>
+ #include <linux/uaccess.h>
+ #include <linux/hugetlb.h>
++#include <linux/sched/mm.h>
+ #include <linux/io.h>
+ #include <asm/tlbflush.h>
+ #include <asm/shmparam.h>
+@@ -2928,6 +2929,8 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
+ 	unsigned long array_size;
+ 	unsigned int nr_small_pages = size >> PAGE_SHIFT;
+ 	unsigned int page_order;
++	unsigned int flags;
++	int ret;
+ 
+ 	array_size = (unsigned long)nr_small_pages * sizeof(struct page *);
+ 	gfp_mask |= __GFP_NOWARN;
+@@ -2971,8 +2974,24 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
+ 		goto fail;
+ 	}
+ 
+-	if (vmap_pages_range(addr, addr + size, prot, area->pages,
+-			page_shift) < 0) {
++	/*
++	 * page tables allocations ignore external gfp mask, enforce it
++	 * by the scope API
++	 */
++	if ((gfp_mask & (__GFP_FS | __GFP_IO)) == __GFP_IO)
++		flags = memalloc_nofs_save();
++	else if ((gfp_mask & (__GFP_FS | __GFP_IO)) == 0)
++		flags = memalloc_noio_save();
++
++	ret = vmap_pages_range(addr, addr + size, prot, area->pages,
++			page_shift);
++
++	if ((gfp_mask & (__GFP_FS | __GFP_IO)) == __GFP_IO)
++		memalloc_nofs_restore(flags);
++	else if ((gfp_mask & (__GFP_FS | __GFP_IO)) == 0)
++		memalloc_noio_restore(flags);
++
++	if (ret < 0) {
+ 		warn_alloc(gfp_mask, NULL,
+ 			"vmalloc error: size %lu, failed to map pages",
+ 			area->nr_pages * PAGE_SIZE);

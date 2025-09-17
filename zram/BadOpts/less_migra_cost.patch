@@ -1,0 +1,24 @@
+From 56499f3ab80a0e0d80803c22665a5c2c5d8a0e64 Mon Sep 17 00:00:00 2001
+From: hfdem <admin@hfdem.com>
+Date: Tue, 8 Oct 2024 00:20:05 +0800
+Subject: [PATCH] sched/fair: Reduce migration cost to leverage DynamIQ Shared
+ Unit
+
+Sultan set it to zero, but I choose reduce 85% considering impact of frequent task switching on scheduling.
+---
+ kernel/sched/fair.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index cdd8849baa15..83612686cefd 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -87,7 +87,7 @@ unsigned int sysctl_sched_child_runs_first __read_mostly;
+ unsigned int sysctl_sched_wakeup_granularity			= 1000000UL;
+ static unsigned int normalized_sysctl_sched_wakeup_granularity	= 1000000UL;
+ 
+-const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
++const_debug unsigned int sysctl_sched_migration_cost	= 75000UL;
+ 
+ int sched_thermal_decay_shift;
+ static int __init setup_sched_thermal_decay_shift(char *str)
