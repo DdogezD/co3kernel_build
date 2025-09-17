@@ -96,6 +96,7 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
+          patch -p1 < menu_cleanup.patch || true
           patch -p1 < polly1.patch || true
           patch -p1 < polly2.patch || true
           patch -p1 < no_drm_dbg.patch || true
@@ -132,11 +133,12 @@ jobs:
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_NET_SCH_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_NET_SCH_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_DEFAULT_FQ=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_DEFAULT_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NET_SCH_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NET_SCH_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_DEFAULT_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
