@@ -24,12 +24,7 @@
 ---
 **网络相关调优**
  
-使用 bbr+fq_codel
-
----
-**I/O 调速器优化**
-
-io调速器可选 ssg
+使用 westwood_plus+fq_codel
 
 ---
 **zram 性能优化**
