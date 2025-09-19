@@ -5,9 +5,32 @@
 ---
 **大量性能调优**
 
-合并了部分来自 **sultan, arter97, pzqqt, brokestar, ztc1997, hfdem** 等内核开发者的优化
+合并了部分来自 **sultan, arter97, pzqqt, brokestar, ztc1997, hfdem** 等内核开发者的优化 *(排名不分先后)*
 
-*排名不分先后*
+- 启用 o3 编译
+- 启用 llvm armv9-a 优化
+- 启用 llvm Polly 优化器
+- 启用 LAZY RCU
+- 禁用 KFENCE & UBSAN
+- BLK/BLKdev 不收集 io stat
+- 去除 drm 中的 debug
+- 去除 psi 中的 debug
+- arm64: clear_page 对齐 16b
+- cpuidle: need_resched() 返回 true 时不进入 cpuidle
+- cpuidle: 去除 cpuidle: menu 的 iowait
+- 重写的 mem* func
+  - memcpy, memmove, memset, memutil
+- mm: 不为 user/admin 登录而保留内存 (~136m)
+- 优化 DynamIQ Shared Unit
+  - fair: 减少任务迁移开销
+  - sched: 禁用 CACHE_HOT_BUDDY
+- fs: 缓存减半以发挥大内存的作用
+- ttwu 流程中省略多余的获取内存屏障操作
+- locking: 更短的 rwsem 运行周期
+- vmalloc: 能够分配大块虚拟内存
+- selinux: 避免动态内存分配
+
+- 以及一些上游补丁...
 
 ---
 **使用最小作用域 hooks 的 KernelSU Next**
