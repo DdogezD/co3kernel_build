@@ -25,7 +25,6 @@
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 缓存减半以发挥大内存的作用
 - ttwu 流程中省略多余的获取内存屏障操作
-- locking: 更短的 rwsem 运行周期
 - vmalloc: 能够分配大块虚拟内存
 - selinux: 避免动态内存分配
 
