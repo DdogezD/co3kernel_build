@@ -1,0 +1,136 @@
+From e6dffae9478619fdbbc9d3e0d9b580dcc5b57f57 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Tue, 13 Jun 2023 10:09:20 +0200
+Subject: [PATCH] BACKPORT: dma-buf: keep the signaling time of merged fences
+ v3
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Some Android CTS is testing if the signaling time keeps consistent
+during merges.
+
+v2: use the current time if the fence is still in the signaling path and
+the timestamp not yet available.
+v3: improve comment, fix one more case to use the correct timestamp
+
+Bug: 379008999
+Change-Id: Ia29fbb61d7a2a3c32fecfc2dbf30fcb39eeff38f
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Luben Tuikov <luben.tuikov@amd.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230630120041.109216-1-christian.koenig@amd.com
+(cherry picked from commit f781f661e8c99b0cb34129f2e374234d61864e77)
+[kiyoshi: Resolved conflict regarding drivers/dma-buf/dma-fence-unwrap.c
+Added alternative function to avoid changing
+dma_fence_allocate_private_stub which is already exported]
+Signed-off-by: Kiyoshi Konno <konno.kiyoshi@sharp.corp-partner.google.com>
+[TJ: Add dma-fence-unwrap.o to Makefile now that it has been adapted to
+work with our new dma_fence_allocate_private_stub_with_timestamp
+function in an ABI-stable way.]
+Signed-off-by: T.J. Mercier <tjmercier@google.com>
+---
+ drivers/dma-buf/Makefile           |  2 +-
+ drivers/dma-buf/dma-fence-unwrap.c |  4 ++--
+ drivers/dma-buf/dma-fence.c        | 28 ++++++++++++++++++++++++++++
+ drivers/gpu/drm/drm_syncobj.c      |  2 +-
+ include/linux/dma-fence.h          |  1 +
+ 5 files changed, 33 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/dma-buf/Makefile b/drivers/dma-buf/Makefile
+index 9b0b4e73a4550..df30366bf5e82 100644
+--- a/drivers/dma-buf/Makefile
++++ b/drivers/dma-buf/Makefile
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ obj-y := dma-buf.o dma-fence.o dma-fence-array.o dma-fence-chain.o \
+-	 dma-resv.o seqno-fence.o
++	 dma-fence-unwrap.o dma-resv.o seqno-fence.o
+ obj-$(CONFIG_DMABUF_HEAPS)	+= dma-heap.o
+ obj-$(CONFIG_DMABUF_HEAPS)	+= heaps/
+ obj-$(CONFIG_SYNC_FILE)		+= sync_file.o
+diff --git a/drivers/dma-buf/dma-fence-unwrap.c b/drivers/dma-buf/dma-fence-unwrap.c
+index 628af51c81af3..813a7d67f9248 100644
+--- a/drivers/dma-buf/dma-fence-unwrap.c
++++ b/drivers/dma-buf/dma-fence-unwrap.c
+@@ -90,7 +90,7 @@ struct dma_fence *__dma_fence_unwrap_merge(unsigned int num_fences,
+ 	 * fence with the timestamp of the last signaled one.
+ 	 */
+ 	if (count == 0)
+-		return dma_fence_allocate_private_stub(timestamp);
++		return dma_fence_allocate_private_stub_with_timestamp(timestamp);
+ 
+ 	array = kmalloc_array(count, sizeof(*array), GFP_KERNEL);
+ 	if (!array)
+@@ -151,7 +151,7 @@ struct dma_fence *__dma_fence_unwrap_merge(unsigned int num_fences,
+ 	} while (tmp);
+ 
+ 	if (count == 0) {
+-		tmp = dma_fence_allocate_private_stub(ktime_get());
++		tmp = dma_fence_allocate_private_stub_with_timestamp(ktime_get());
+ 		goto return_tmp;
+ 	}
+ 
+diff --git a/drivers/dma-buf/dma-fence.c b/drivers/dma-buf/dma-fence.c
+index ce0f5eff575d7..1146759460619 100644
+--- a/drivers/dma-buf/dma-fence.c
++++ b/drivers/dma-buf/dma-fence.c
+@@ -166,6 +166,34 @@ struct dma_fence *dma_fence_allocate_private_stub(void)
+ }
+ EXPORT_SYMBOL(dma_fence_allocate_private_stub);
+ 
++/**
++ * dma_fence_allocate_private_stub_with_timestamp - return a private, signaled fence
++ * @timestamp: timestamp when the fence was signaled
++ *
++ * Return a newly allocated and signaled stub fence.
++ */
++struct dma_fence *dma_fence_allocate_private_stub_with_timestamp(ktime_t timestamp)
++{
++	struct dma_fence *fence;
++
++	fence = kzalloc(sizeof(*fence), GFP_KERNEL);
++	if (fence == NULL)
++		return NULL;
++
++	dma_fence_init(fence,
++		       &dma_fence_stub_ops,
++		       &dma_fence_stub_lock,
++		       0, 0);
++
++	set_bit(DMA_FENCE_FLAG_ENABLE_SIGNAL_BIT,
++		&dma_fence_stub.flags);
++
++	dma_fence_signal_timestamp(fence, timestamp);
++
++	return fence;
++}
++EXPORT_SYMBOL(dma_fence_allocate_private_stub_with_timestamp);
++
+ /**
+  * dma_fence_context_alloc - allocate an array of fence contexts
+  * @num: amount of contexts to allocate
+diff --git a/drivers/gpu/drm/drm_syncobj.c b/drivers/gpu/drm/drm_syncobj.c
+index 2de679ffd88de..25048f4b56b97 100644
+--- a/drivers/gpu/drm/drm_syncobj.c
++++ b/drivers/gpu/drm/drm_syncobj.c
+@@ -352,7 +352,7 @@ EXPORT_SYMBOL(drm_syncobj_replace_fence);
+  */
+ static int drm_syncobj_assign_null_handle(struct drm_syncobj *syncobj)
+ {
+-	struct dma_fence *fence = dma_fence_allocate_private_stub();
++	struct dma_fence *fence = dma_fence_allocate_private_stub_with_timestamp(ktime_get());
+ 
+ 	if (IS_ERR(fence))
+ 		return PTR_ERR(fence);
+diff --git a/include/linux/dma-fence.h b/include/linux/dma-fence.h
+index 9d276655cc25a..64b755cc9945e 100644
+--- a/include/linux/dma-fence.h
++++ b/include/linux/dma-fence.h
+@@ -607,6 +607,7 @@ static inline signed long dma_fence_wait(struct dma_fence *fence, bool intr)
+ 
+ struct dma_fence *dma_fence_get_stub(void);
+ struct dma_fence *dma_fence_allocate_private_stub(void);
++struct dma_fence *dma_fence_allocate_private_stub_with_timestamp(ktime_t timestamp);
+ u64 dma_fence_context_alloc(unsigned num);
+ 
+ #define DMA_FENCE_TRACE(f, fmt, args...) \

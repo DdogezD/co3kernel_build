@@ -1,0 +1,46 @@
+From c5bbb6a7bd6c729f13927cdb66aaa0d778eff220 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Christian=20K=C3=B6nig?= <christian.koenig@amd.com>
+Date: Fri, 25 Mar 2022 16:38:54 +0100
+Subject: [PATCH] UPSTREAM: dma-buf: handle empty dma_fence_arrays gracefully
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A bug inside the new sync-file merge code created empty dma_fence_array instances.
+
+Warn about that and handle those without crashing.
+
+Bug: 379008999
+Change-Id: Ibcbcedca1842920e42334de04d92f00baf9fdd21
+Signed-off-by: Christian König <christian.koenig@amd.com>
+Reviewed-by: Thomas Hellström <thomas.hellstrom@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20220329070001.134180-2-christian.koenig@amd.com
+(cherry picked from commit c42ee39c1e78224d3a81bdbe0600abe4581226ed)
+Signed-off-by: T.J. Mercier <tjmercier@google.com>
+---
+ drivers/dma-buf/dma-fence-array.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/dma-buf/dma-fence-array.c b/drivers/dma-buf/dma-fence-array.c
+index f7ac2012f9758..9b3658aff1174 100644
+--- a/drivers/dma-buf/dma-fence-array.c
++++ b/drivers/dma-buf/dma-fence-array.c
+@@ -159,6 +159,8 @@ struct dma_fence_array *dma_fence_array_create(int num_fences,
+ 	struct dma_fence_array *array;
+ 	size_t size = sizeof(*array);
+ 
++	WARN_ON(!num_fences || !fences);
++
+ 	/* Allocate the callback structures behind the array. */
+ 	size += num_fences * sizeof(struct dma_fence_array_cb);
+ 	array = kzalloc(size, GFP_KERNEL);
+@@ -217,6 +219,9 @@ struct dma_fence *dma_fence_array_first(struct dma_fence *head)
+ 	if (!array)
+ 		return head;
+ 
++	if (!array->num_fences)
++		return NULL;
++
+ 	return array->fences[0];
+ }
+ EXPORT_SYMBOL(dma_fence_array_first);
