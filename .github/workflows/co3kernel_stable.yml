@@ -101,6 +101,7 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
+          patch -p1 < menu_neg_sleep_length.patch || true
           patch -p1 < menu_cleanup.patch || true
           patch -p1 < menu_fix_typo.patch || true
           patch -p1 < menu_rm_iowait_influ.patch || true
