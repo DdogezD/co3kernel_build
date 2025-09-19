@@ -19,7 +19,7 @@ index 1f4d21b43e591..4794feace86be 100644
   * arbitrary, since it's serialized on rename_lock
   */
 -int sysctl_vfs_cache_pressure __read_mostly = 100;
-+int sysctl_vfs_cache_pressure __read_mostly = 36;
++int sysctl_vfs_cache_pressure __read_mostly = 50;
  EXPORT_SYMBOL_GPL(sysctl_vfs_cache_pressure);
  
  __cacheline_aligned_in_smp DEFINE_SEQLOCK(rename_lock);
