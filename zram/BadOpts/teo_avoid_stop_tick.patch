@@ -1,0 +1,99 @@
+From 7ec0a3e816890182311173cf2db79c0a20811f74 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Mon, 31 Jul 2023 21:03:09 +0200
+Subject: [PATCH] cpuidle: teo: Avoid stopping the tick unnecessarily when
+ bailing out
+
+When teo_select() is going to return early in some special cases, make
+it avoid stopping the tick if the idle state to be returned is shallow.
+
+In particular, never stop the tick if state 0 is to be returned.
+
+Link: https://lore.kernel.org/linux-pm/CAJZ5v0jJxHj65r2HXBTd3wfbZtsg=_StzwO1kA5STDnaPe_dWA@mail.gmail.com
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Reviewed-and-tested-by: Kajetan Puchalski <kajetan.puchalski@arm.com>
+[Sultan Alsawaf: adapt to the absence of util awareness]
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ drivers/cpuidle/governors/teo.c | 47 ++++++++++++++++++++-------------
+ 1 file changed, 28 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index d9262db79cae5..3c0435556efa0 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -313,12 +313,13 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	/* Check if there is any choice in the first place. */
+ 	if (drv->state_count < 2) {
+ 		idx = 0;
+-		goto end;
++		goto out_tick;
+ 	}
++
+ 	if (!dev->states_usage[0].disable) {
+ 		idx = 0;
+ 		if (drv->states[1].target_residency_ns > duration_ns)
+-			goto end;
++			goto out_tick;
+ 	}
+ 
+ 	/*
+@@ -364,8 +365,15 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	/* Avoid unnecessary overhead. */
+ 	if (idx < 0) {
+ 		idx = 0; /* No states enabled, must use 0. */
+-		goto end;
+-	} else if (idx == idx0) {
++		goto out_tick;
++	}
++
++	if (idx == idx0) {
++		/*
++		 * This is the first enabled idle state, so use it, but do not
++		 * allow the tick to be stopped it is shallow enough.
++		 */
++		duration_ns = drv->states[idx].target_residency_ns;
+ 		goto end;
+ 	}
+ 
+@@ -454,24 +462,25 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ end:
+ 	/*
+-	 * Don't stop the tick if the selected state is a polling one or if the
+-	 * expected idle duration is shorter than the tick period length.
++	 * Allow the tick to be stopped unless the selected state is a polling
++	 * one or the expected idle duration is shorter than the tick period
++	 * length.
+ 	 */
+-	if (((drv->states[idx].flags & CPUIDLE_FLAG_POLLING) ||
+-	    duration_ns < TICK_NSEC) && !tick_nohz_tick_stopped()) {
+-		*stop_tick = false;
++	if ((!(drv->states[idx].flags & CPUIDLE_FLAG_POLLING) &&
++	    duration_ns >= TICK_NSEC) || tick_nohz_tick_stopped())
++		return idx;
+ 
+-		/*
+-		 * The tick is not going to be stopped, so if the target
+-		 * residency of the state to be returned is not within the time
+-		 * till the closest timer including the tick, try to correct
+-		 * that.
+-		 */
+-		if (idx > idx0 &&
+-		    drv->states[idx].target_residency_ns > delta_tick)
+-			idx = teo_find_shallower_state(drv, dev, idx, delta_tick);
+-	}
++	/*
++	 * The tick is not going to be stopped, so if the target residency of
++	 * the state to be returned is not within the time till the closest
++	 * timer including the tick, try to correct that.
++	 */
++	if (idx > idx0 &&
++	    drv->states[idx].target_residency_ns > delta_tick)
++		idx = teo_find_shallower_state(drv, dev, idx, delta_tick);
+ 
++out_tick:
++	*stop_tick = false;
+ 	return idx;
+ }
+ 
