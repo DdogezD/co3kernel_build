@@ -98,7 +98,6 @@ jobs:
           patch -p1 < less_migra_cost.patch || true
           patch -p1 < fs_reduce_cache.patch || true
           patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
-          patch -p1 < tweak_rwsem.patch || true
           patch -p1 < blk_disable_iostats.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
