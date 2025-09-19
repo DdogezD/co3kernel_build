@@ -1,0 +1,44 @@
+From 16c610a16b437d60778f7bf15b02a24520de2645 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Tue, 22 Aug 2023 13:28:02 +0200
+Subject: [PATCH] cpuidle: teo: Avoid unnecessary variable assignments
+
+Notice that it is not necessary to assign tick_intercept_sum in every
+iteration of the first loop over idle states in teo_select(), because
+the intercept_sum value does not change after the assignment in a
+given iteration of the loop, so its value after the last iteration of
+the loop can be used for computing the tick_intercept_sum value
+directly.
+
+Modify the code accordingly.
+
+No intentional functional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpuidle/governors/teo.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 25f543a257c1c..47b2eaf3099fa 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -361,8 +361,6 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		hit_sum += prev_bin->hits;
+ 		recent_sum += prev_bin->recent;
+ 
+-		tick_intercept_sum = intercept_sum;
+-
+ 		if (dev->states_usage[i].disable)
+ 			continue;
+ 
+@@ -395,7 +393,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		goto end;
+ 	}
+ 
+-	tick_intercept_sum += cpu_data->state_bins[drv->state_count-1].intercepts;
++	tick_intercept_sum = intercept_sum +
++			cpu_data->state_bins[drv->state_count-1].intercepts;
+ 
+ 	/*
+ 	 * If the sum of the intercepts metric for all of the idle states

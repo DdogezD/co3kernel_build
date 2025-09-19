@@ -1,0 +1,155 @@
+From 3178b845fb54ecf81bd8b343057a5055232cbf59 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 3 Aug 2023 23:11:40 +0200
+Subject: [PATCH] cpuidle: teo: Gather statistics regarding whether or not to
+ stop the tick
+
+Currently, if the target residency of the deepest idle state is less than
+the tick period length, which is quite likely for HZ=100, and the deepest
+idle state is about to be selected by the TEO idle governor, the decision
+on whether or not to stop the scheduler tick is based entirely on the
+time till the closest timer.  This is often insufficient, because timers
+may not be in heavy use and there may be a plenty of other CPU wakeup
+events between the deepest idle state's target residency and the closest
+tick.
+
+Allow the governor to count those events by making the deepest idle
+state's bin effectively end at TICK_NSEC and introducing an additional
+"bin" for collecting "hit" events (ie. the ones in which the measured
+idle duration falls into the same bin as the time till the closest
+timer) with idle duration values past TICK_NSEC.
+
+This way the "intercepts" metric for the deepest idle state's bin
+becomes nonzero in general, and so it can influence the decision on
+whether or not to stop the tick possibly increasing the governor's
+accuracy in that respect.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Tested-by: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Tested-by: Anna-Maria Behnsen <anna-maria@linutronix.de>
+---
+ drivers/cpuidle/governors/teo.c | 41 ++++++++++++++++++++++++++++++++-
+ 1 file changed, 40 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 43b7e472046c1..25f543a257c1c 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -146,6 +146,7 @@ struct teo_bin {
+  * @total: Grand total of the "intercepts" and "hits" mertics for all bins.
+  * @next_recent_idx: Index of the next @recent_idx entry to update.
+  * @recent_idx: Indices of bins corresponding to recent "intercepts".
++ * @tick_hits: Number of "hits" after TICK_NSEC.
+  */
+ struct teo_cpu {
+ 	s64 time_span_ns;
+@@ -154,6 +155,7 @@ struct teo_cpu {
+ 	unsigned int total;
+ 	int next_recent_idx;
+ 	int recent_idx[NR_RECENT];
++	unsigned int tick_hits;
+ };
+ 
+ static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
+@@ -167,6 +169,7 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int i, idx_timer = 0, idx_duration = 0;
++	s64 target_residency_ns;
+ 	u64 measured_ns;
+ 
+ 	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+@@ -207,7 +210,6 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	 * fall into.
+ 	 */
+ 	for (i = 0; i < drv->state_count; i++) {
+-		s64 target_residency_ns = drv->states[i].target_residency_ns;
+ 		struct teo_bin *bin = &cpu_data->state_bins[i];
+ 
+ 		bin->hits -= bin->hits >> DECAY_SHIFT;
+@@ -215,6 +217,8 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 
+ 		cpu_data->total += bin->hits + bin->intercepts;
+ 
++		target_residency_ns = drv->states[i].target_residency_ns;
++
+ 		if (target_residency_ns <= cpu_data->sleep_length_ns) {
+ 			idx_timer = i;
+ 			if (target_residency_ns <= measured_ns)
+@@ -229,6 +233,26 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	if (cpu_data->recent_idx[i] >= 0)
+ 		cpu_data->state_bins[cpu_data->recent_idx[i]].recent--;
+ 
++	/*
++	 * If the deepest state's target residency is below the tick length,
++	 * make a record of it to help teo_select() decide whether or not
++	 * to stop the tick.  This effectively adds an extra hits-only bin
++	 * beyond the last state-related one.
++	 */
++	if (target_residency_ns < TICK_NSEC) {
++		cpu_data->tick_hits -= cpu_data->tick_hits >> DECAY_SHIFT;
++
++		cpu_data->total += cpu_data->tick_hits;
++
++		if (TICK_NSEC <= cpu_data->sleep_length_ns) {
++			idx_timer = drv->state_count;
++			if (TICK_NSEC <= measured_ns) {
++				cpu_data->tick_hits += PULSE;
++				goto end;
++			}
++		}
++	}
++
+ 	/*
+ 	 * If the measured idle duration falls into the same bin as the sleep
+ 	 * length, this is a "hit", so update the "hits" metric for that bin.
+@@ -244,6 +268,7 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 		cpu_data->recent_idx[i] = idx_duration;
+ 	}
+ 
++end:
+ 	cpu_data->total += PULSE;
+ }
+ 
+@@ -289,6 +314,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	s64 latency_req = cpuidle_governor_latency_req(dev->cpu);
+ 	ktime_t delta_tick = TICK_NSEC / 2;
++	unsigned int tick_intercept_sum = 0;
+ 	unsigned int idx_intercept_sum = 0;
+ 	unsigned int intercept_sum = 0;
+ 	unsigned int idx_recent_sum = 0;
+@@ -335,6 +361,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		hit_sum += prev_bin->hits;
+ 		recent_sum += prev_bin->recent;
+ 
++		tick_intercept_sum = intercept_sum;
++
+ 		if (dev->states_usage[i].disable)
+ 			continue;
+ 
+@@ -367,6 +395,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		goto end;
+ 	}
+ 
++	tick_intercept_sum += cpu_data->state_bins[drv->state_count-1].intercepts;
++
+ 	/*
+ 	 * If the sum of the intercepts metric for all of the idle states
+ 	 * shallower than the current candidate one (idx) is greater than the
+@@ -471,6 +501,15 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			idx = i;
+ 	}
+ 
++	/*
++	 * If the selected state's target residency is below the tick length
++	 * and intercepts occurring before the tick length are the majority of
++	 * total wakeup events, do not stop the tick.
++	 */
++	if (drv->states[idx].target_residency_ns < TICK_NSEC &&
++	    tick_intercept_sum > cpu_data->total / 2 + cpu_data->total / 8)
++		duration_ns = TICK_NSEC / 2;
++
+ end:
+ 	/*
+ 	 * Allow the tick to be stopped unless the selected state is a polling

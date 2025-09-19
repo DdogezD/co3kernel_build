@@ -1,0 +1,70 @@
+From 98e798ed8bb5346c4795f9454deaca6f94b1e8fa Mon Sep 17 00:00:00 2001
+From: Christian Loehle <christian.loehle@arm.com>
+Date: Sat, 29 Jun 2024 09:22:48 +0100
+Subject: [PATCH] cpuidle: teo: Don't count non-existent intercepts
+
+When bailing out early, teo will not query the sleep length anymore
+since commit 6da8f9ba5a87 ("cpuidle: teo:
+Skip tick_nohz_get_sleep_length() call in some cases") with an
+expected sleep_length_ns value of KTIME_MAX.
+This lead to state0 accumulating lots of 'intercepts' because
+the actually measured sleep length was < KTIME_MAX, so query the sleep
+length instead for teo to recognize if it still is in an
+intercept-likely scenario without alternating between the two modes.
+
+Fundamentally we can only do one of the two:
+ 1. Skip sleep_length_ns query when we think intercept is likely.
+ 2. Have accurate data if sleep_length_ns is actually intercepted when
+we believe it is currently intercepted.
+
+Previously teo did the former while this patch chooses the latter as
+the additional time it takes to query the sleep length was found to be
+negligible and the variants of option 1 (count all unknowns as misses
+or count all unknown as hits) had significant regressions (as misses
+had lots of too shallow idle state selections and as hits had terrible
+performance in intercept-heavy workloads).
+
+Fixes: 6da8f9ba5a87 ("cpuidle: teo: Skip tick_nohz_get_sleep_length() call in some cases")
+Link: https://patch.msgid.link/c40acf72-010f-4a8b-80e4-33f133ba266b@arm.com
+Signed-off-by: Christian Loehle <christian.loehle@arm.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpuidle/governors/teo.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 39287044d353c..496b88c069756 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -289,6 +289,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	unsigned int hit_sum = 0;
+ 	int constraint_idx = 0;
+ 	int idx0 = 0, idx = -1;
++	int prev_intercept_idx;
+ 	s64 duration_ns;
+ 	int i;
+ 
+@@ -366,6 +367,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	 * all of the deeper states a shallower idle state is likely to be a
+ 	 * better choice.
+ 	 */
++	prev_intercept_idx = idx;
+ 	if (2 * idx_intercept_sum > cpu_data->total - idx_hit_sum) {
+ 		int first_suitable_idx = idx;
+ 
+@@ -417,6 +419,15 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			first_suitable_idx = i;
+ 		}
+ 	}
++	if (!idx && prev_intercept_idx) {
++		/*
++		 * We have to query the sleep length here otherwise we don't
++		 * know after wakeup if our guess was correct.
++		 */
++		duration_ns = tick_nohz_get_sleep_length(&delta_tick);
++		cpu_data->sleep_length_ns = duration_ns;
++		goto out_tick;
++	}
+ 
+ 	/*
+ 	 * If there is a latency constraint, it may be necessary to select an

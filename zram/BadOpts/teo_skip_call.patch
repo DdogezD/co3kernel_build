@@ -1,0 +1,60 @@
+From 0271b70409ca94541a8ca075b341d169db8b7dfe Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 3 Aug 2023 23:09:18 +0200
+Subject: [PATCH] cpuidle: teo: Skip tick_nohz_get_sleep_length() call in some
+ cases
+
+Make teo_select() avoid calling tick_nohz_get_sleep_length() if the
+candidate idle state to return is state 0 or if state 0 is a polling
+one and the target residency of the current candidate one is below
+a certain threshold, in which cases it may be assumed that the CPU will
+be woken up immediately by a non-timer wakeup source and the timers
+are not likely to matter.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Tested-by: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Tested-by: Anna-Maria Behnsen <anna-maria@linutronix.de>
+---
+ drivers/cpuidle/governors/teo.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index f5f9cc53d5736..43b7e472046c1 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -120,6 +120,12 @@
+  */
+ #define NR_RECENT	9
+ 
++/*
++ * Idle state target residency threshold used for deciding whether or not to
++ * check the time till the closest expected timer event.
++ */
++#define RESIDENCY_THRESHOLD_NS	(15 * NSEC_PER_USEC)
++
+ /**
+  * struct teo_bin - Metrics used by the TEO cpuidle governor.
+  * @intercepts: The "intercepts" metric.
+@@ -436,6 +442,22 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	if (idx > constraint_idx)
+ 		idx = constraint_idx;
+ 
++	/*
++	 * Skip the timers check if state 0 is the current candidate one,
++	 * because an immediate non-timer wakeup is expected in that case.
++	 */
++	if (!idx)
++		goto out_tick;
++
++	/*
++	 * If state 0 is a polling one, check if the target residency of
++	 * the current candidate state is low enough and skip the timers
++	 * check in that case too.
++	 */
++	if ((drv->states[0].flags & CPUIDLE_FLAG_POLLING) &&
++	    drv->states[idx].target_residency_ns < RESIDENCY_THRESHOLD_NS)
++		goto out_tick;
++
+ 	duration_ns = tick_nohz_get_sleep_length(&delta_tick);
+ 	cpu_data->sleep_length_ns = duration_ns;
+ 
