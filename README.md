@@ -17,6 +17,7 @@
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
 - arm64: clear_page 对齐 16b
+- dma_buf: 去除 debug 以加速 ioctl
 - cpuidle: 去除 cpuidle: menu 的 iowait
 - 重写的 mem* func
   - memcpy, memmove, memset, memutil
@@ -30,6 +31,7 @@
 - selinux: 避免动态内存分配
 
 - 以及一些上游补丁...
+  - BACKPORT: dma_buf 大量修改
 
 ---
 **使用最小作用域 hooks 的 KernelSU Next**
