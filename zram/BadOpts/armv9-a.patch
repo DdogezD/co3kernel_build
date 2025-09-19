@@ -1,0 +1,26 @@
+From 4f767936c216649722858bde4a72de4f8d098873 Mon Sep 17 00:00:00 2001
+From: Kairui Song <ryncsn@gmail.com>
+Date: Sat, 7 Sep 2024 20:38:43 +0800
+Subject: [PATCH] build: build for armv9-a and O3
+
+For Xperia 1 V, 8 Gen 2 is armv9-a and Clang 14 supports that.
+
+Change-Id: I80fa8a01ac74966006081023d5746dc6500d3317
+Signed-off-by: Kairui Song <ryncsn@gmail.com>
+---
+ build.config.common | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/build.config.common b/build.config.common
+index 11d92f962b4c3..91942ed1bb6c5 100644
+--- a/build.config.common
++++ b/build.config.common
+@@ -8,7 +8,7 @@ CLANG_PREBUILT_BIN=prebuilts/clang/host/linux-x86/clang-${CLANG_VERSION}/bin
+ BUILDTOOLS_PREBUILT_BIN=build/kernel/build-tools/path/linux-x86
+ DTC=${ROOT_DIR}/${BUILDTOOLS_PREBUILT_BIN}/dtc
+ 
+-KCFLAGS="${KCFLAGS} -D__ANDROID_COMMON_KERNEL__"
++KCFLAGS="${KCFLAGS} -march=armv9-a -D__ANDROID_COMMON_KERNEL__"
+ EXTRA_CMDS=''
+ STOP_SHIP_TRACEPRINTK=1
+ IN_KERNEL_MODULES=1

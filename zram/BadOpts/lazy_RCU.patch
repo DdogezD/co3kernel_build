@@ -1,0 +1,23 @@
+From 259e87cf0ad122f8162e898ef46bf85b7aa6a7e4 Mon Sep 17 00:00:00 2001
+From: Kairui Song <ryncsn@gmail.com>
+Date: Thu, 24 Apr 2025 11:36:22 +0800
+Subject: [PATCH] config: enable RCU lazy by default
+
+Change-Id: I76b2e38898a1b5dc8d716c370e7935b8b1c40d02
+Signed-off-by: Kairui Song <ryncsn@gmail.com>
+---
+ arch/arm64/configs/gki_defconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
+index e6186c4ea5824..65bb8bb891793 100644
+--- a/arch/arm64/configs/gki_defconfig
++++ b/arch/arm64/configs/gki_defconfig
+@@ -16,7 +16,6 @@ CONFIG_RCU_FAST_NO_HZ=y
+ CONFIG_RCU_BOOST=y
+ CONFIG_RCU_NOCB_CPU=y
+ CONFIG_RCU_LAZY=y
+-CONFIG_RCU_LAZY_DEFAULT_OFF=y
+ CONFIG_IKCONFIG=y
+ CONFIG_IKCONFIG_PROC=y
+ CONFIG_IKHEADERS=y

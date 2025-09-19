@@ -1,0 +1,56 @@
+From e93ceae1e37920ba3a8d793b58bd83b9fadcc0eb Mon Sep 17 00:00:00 2001
+From: Kairui Song <ryncsn@gmail.com>
+Date: Wed, 23 Apr 2025 11:43:48 +0800
+Subject: [PATCH] psi: disable psi debug output
+
+Cause who cares?
+
+Change-Id: I49ffcf4d86e392f14547833325bbbf65080ff732
+Signed-off-by: Kairui Song <ryncsn@gmail.com>
+---
+ kernel/sched/psi.c | 18 ------------------
+ 1 file changed, 18 deletions(-)
+
+diff --git a/kernel/sched/psi.c b/kernel/sched/psi.c
+index 15c79a948aced..3b4b675657f0e 100644
+--- a/kernel/sched/psi.c
++++ b/kernel/sched/psi.c
+@@ -153,8 +153,6 @@
+ 
+ #include <trace/hooks/psi.h>
+ 
+-static int psi_bug __read_mostly;
+-
+ DEFINE_STATIC_KEY_FALSE(psi_disabled);
+ DEFINE_STATIC_KEY_TRUE(psi_cgroups_enabled);
+ 
+@@ -786,13 +784,6 @@ static void psi_group_change(struct psi_group *group, int cpu,
+ 			continue;
+ 		if (groupc->tasks[t]) {
+ 			groupc->tasks[t]--;
+-		} else if (!psi_bug) {
+-			printk_deferred(KERN_ERR "psi: task underflow! cpu=%d t=%d tasks=[%u %u %u %u %u] clear=%x set=%x\n",
+-					cpu, t, groupc->tasks[0],
+-					groupc->tasks[1], groupc->tasks[2],
+-					groupc->tasks[3], groupc->tasks[4],
+-					clear, set);
+-			psi_bug = 1;
+ 		}
+ 	}
+ 
+@@ -854,15 +845,6 @@ static struct psi_group *iterate_groups(struct task_struct *task, void **iter)
+ 
+ static void psi_flags_change(struct task_struct *task, int clear, int set)
+ {
+-	if (((task->psi_flags & set) ||
+-	     (task->psi_flags & clear) != clear) &&
+-	    !psi_bug) {
+-		printk_deferred(KERN_ERR "psi: inconsistent task state! task=%d:%s cpu=%d psi_flags=%x clear=%x set=%x\n",
+-				task->pid, task->comm, task_cpu(task),
+-				task->psi_flags, clear, set);
+-		psi_bug = 1;
+-	}
+-
+ 	task->psi_flags &= ~clear;
+ 	task->psi_flags |= set;
+ }
