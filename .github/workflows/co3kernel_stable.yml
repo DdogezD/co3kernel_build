@@ -102,6 +102,7 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
+          patch -p1 < spdup_ioctl.patch || true
           patch -p1 < teo_avoid_stop_tick.patch || true
           patch -p1 < teo_do_not_call.patch || true
           patch -p1 < teo_skip_call.patch || true
