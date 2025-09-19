@@ -46,7 +46,7 @@
 ---
 **网络相关调优**
  
-使用 westwood_plus+fq_codel
+使用 westwood+
 
 ---
 **zram 性能优化**
