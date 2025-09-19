@@ -7,10 +7,10 @@
 
 合并了部分来自 **sultan, arter97, pzqqt, brokestar, ztc1997, hfdem** 等内核开发者的优化 *(排名不分先后)*
 
-- 启用 o3 编译
-- 启用 llvm armv9-a 优化
-- 启用 llvm Polly 优化器
+- 启用 o3 优化编译
+- 为 armv9-a 优化编译
 - 为 a510 优化编译
+- 启用 llvm Polly 优化器
 - 启用 LAZY RCU
 - 禁用 KFENCE & UBSAN
 - BLK/BLKdev 不收集 io stat
