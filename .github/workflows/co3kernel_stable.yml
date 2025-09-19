@@ -146,9 +146,9 @@ jobs:
           echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_DEFAULT_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_NET_SCH_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_NET_SCH_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_DEFAULT_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_NET_SCH_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_NET_SCH_DEFAULT=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_DEFAULT_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
