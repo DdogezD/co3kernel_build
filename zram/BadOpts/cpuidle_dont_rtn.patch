@@ -1,0 +1,44 @@
+From 3f8f14fdd95e6c5c227b4f0ffbd0966b1e848d31 Mon Sep 17 00:00:00 2001
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Sat, 2 Dec 2023 20:55:32 -0800
+Subject: [PATCH] cpuidle: Don't return from inside __CPU_PM_CPU_IDLE_ENTER()
+ macro
+
+Altering control flow from inside a macro is a recipe for disaster. This is
+a nightmare for readability and makes it very easy to trip over the return
+nestled in the __CPU_PM_CPU_IDLE_ENTER() macro.
+
+Restructure __CPU_PM_CPU_IDLE_ENTER() to eliminate the nasty return.
+
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ include/linux/cpuidle.h | 15 +++++++--------
+ 1 file changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/include/linux/cpuidle.h b/include/linux/cpuidle.h
+index 1035cb423fc18..341a2b5f68248 100644
+--- a/include/linux/cpuidle.h
++++ b/include/linux/cpuidle.h
+@@ -288,15 +288,14 @@ extern s64 cpuidle_governor_latency_req(unsigned int cpu);
+ 									\
+ 	if (!idx) {							\
+ 		cpu_do_idle();						\
+-		return idx;						\
+-	}								\
+-									\
+-	if (!is_retention)						\
+-		__ret =  cpu_pm_enter();				\
+-	if (!__ret) {							\
+-		__ret = low_level_idle_enter(state);			\
++	} else {							\
+ 		if (!is_retention)					\
+-			cpu_pm_exit();					\
++			__ret = cpu_pm_enter();				\
++		if (!__ret) {						\
++			__ret = low_level_idle_enter(state);		\
++			if (!is_retention)				\
++				cpu_pm_exit();				\
++		}							\
+ 	}								\
+ 									\
+ 	__ret ? -1 : idx;						\
