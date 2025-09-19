@@ -16,7 +16,6 @@
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
 - arm64: clear_page 对齐 16b
-- cpuidle: need_resched() 返回 true 时不进入 cpuidle
 - cpuidle: 去除 cpuidle: menu 的 iowait
 - 重写的 mem* func
   - memcpy, memmove, memset, memutil
