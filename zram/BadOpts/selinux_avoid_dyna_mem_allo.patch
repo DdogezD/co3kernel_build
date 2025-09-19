@@ -44,8 +44,8 @@ index e5d143145c0a7..86058079d46ff 100644
 +			return -ENOMEM;
 +	}
  
- 	if (!selinux_initialized()) {
- 		u32 i;
+	if (!selinux_initialized(state)) {
+		int i;
 @@ -1534,10 +1542,16 @@ static int security_context_to_sid_core(const char *scontext, u32 scontext_len,
  
  	if (force) {
