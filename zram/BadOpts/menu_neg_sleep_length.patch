@@ -1,0 +1,185 @@
+From 790f3e962a0c05275547f3e77213eb820890a29d Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 10 Aug 2023 20:36:36 +0200
+Subject: [PATCH] cpuidle: menu: Skip tick_nohz_get_sleep_length() call in some
+ cases
+
+Because the cost of calling tick_nohz_get_sleep_length() may increase
+in the future, reorder the code in menu_select() so it first uses the
+statistics to determine the expected idle duration.  If that value is
+higher than RESIDENCY_THRESHOLD_NS, tick_nohz_get_sleep_length() will
+be called to obtain the time till the closest timer and refine the
+idle duration prediction if necessary.
+
+This causes the governor to always take the full overhead of
+get_typical_interval() with the assumption that the cost will be
+amortized by skipping the tick_nohz_get_sleep_length() call in the
+cases when the predicted idle duration is relatively very small.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Tested-by: Doug Smythies <dsmythies@telus.net>
+---
+ drivers/cpuidle/governors/gov.h  | 14 +++++++
+ drivers/cpuidle/governors/menu.c | 65 +++++++++++++++++++-------------
+ drivers/cpuidle/governors/teo.c  |  8 +---
+ 3 files changed, 54 insertions(+), 33 deletions(-)
+ create mode 100644 drivers/cpuidle/governors/gov.h
+
+diff --git a/drivers/cpuidle/governors/gov.h b/drivers/cpuidle/governors/gov.h
+new file mode 100644
+index 0000000000000..99e067d9668c1
+--- /dev/null
++++ b/drivers/cpuidle/governors/gov.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++
++/* Common definitions for cpuidle governors. */
++
++#ifndef __CPUIDLE_GOVERNOR_H
++#define __CPUIDLE_GOVERNOR_H
++
++/*
++ * Idle state target residency threshold used for deciding whether or not to
++ * check the time till the closest expected timer event.
++ */
++#define RESIDENCY_THRESHOLD_NS	(15 * NSEC_PER_USEC)
++
++#endif /* __CPUIDLE_GOVERNOR_H */
+diff --git a/drivers/cpuidle/governors/menu.c b/drivers/cpuidle/governors/menu.c
+index 2e5670446991f..4543dd486d9c4 100644
+--- a/drivers/cpuidle/governors/menu.c
++++ b/drivers/cpuidle/governors/menu.c
+@@ -19,6 +19,8 @@
+ #include <linux/sched/stat.h>
+ #include <linux/math64.h>
+ 
++#include "gov.h"
++
+ #define BUCKETS 12
+ #define INTERVAL_SHIFT 3
+ #define INTERVALS (1UL << INTERVAL_SHIFT)
+@@ -166,8 +168,7 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev);
+  * of points is below a threshold. If it is... then use the
+  * average of these 8 points as the estimated value.
+  */
+-static unsigned int get_typical_interval(struct menu_device *data,
+-					 unsigned int predicted_us)
++static unsigned int get_typical_interval(struct menu_device *data)
+ {
+ 	int i, divisor;
+ 	unsigned int min, max, thresh, avg;
+@@ -195,11 +196,7 @@ static unsigned int get_typical_interval(struct menu_device *data,
+ 		}
+ 	}
+ 
+-	/*
+-	 * If the result of the computation is going to be discarded anyway,
+-	 * avoid the computation altogether.
+-	 */
+-	if (min >= predicted_us)
++	if (!max)
+ 		return UINT_MAX;
+ 
+ 	if (divisor == INTERVALS)
+@@ -267,7 +264,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct menu_device *data = this_cpu_ptr(&menu_devices);
+ 	s64 latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	unsigned int predicted_us;
+ 	u64 predicted_ns;
+ 	u64 interactivity_req;
+ 	unsigned int nr_iowaiters;
+@@ -279,16 +275,41 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		data->needs_update = 0;
+ 	}
+ 
+-	/* determine the expected residency time, round up */
+-	delta = tick_nohz_get_sleep_length(&delta_tick);
+-	if (unlikely(delta < 0)) {
+-		delta = 0;
+-		delta_tick = 0;
+-	}
+-	data->next_timer_ns = delta;
+-
+ 	nr_iowaiters = nr_iowait_cpu(dev->cpu);
+-	data->bucket = which_bucket(data->next_timer_ns, nr_iowaiters);
++
++	/* Find the shortest expected idle interval. */
++	predicted_ns = get_typical_interval(data) * NSEC_PER_USEC;
++	if (predicted_ns > RESIDENCY_THRESHOLD_NS) {
++		unsigned int timer_us;
++
++		/* Determine the time till the closest timer. */
++		delta = tick_nohz_get_sleep_length(&delta_tick);
++		if (unlikely(delta < 0)) {
++			delta = 0;
++			delta_tick = 0;
++		}
++
++		data->next_timer_ns = delta;
++		data->bucket = which_bucket(data->next_timer_ns, nr_iowaiters);
++
++		/* Round up the result for half microseconds. */
++		timer_us = div_u64((RESOLUTION * DECAY * NSEC_PER_USEC) / 2 +
++					data->next_timer_ns *
++						data->correction_factor[data->bucket],
++				   RESOLUTION * DECAY * NSEC_PER_USEC);
++		/* Use the lowest expected idle interval to pick the idle state. */
++		predicted_ns = min((u64)timer_us * NSEC_PER_USEC, predicted_ns);
++	} else {
++		/*
++		 * Because the next timer event is not going to be determined
++		 * in this case, assume that without the tick the closest timer
++		 * will be in distant future and that the closest tick will occur
++		 * after 1/2 of the tick period.
++		 */
++		data->next_timer_ns = KTIME_MAX;
++		delta_tick = TICK_NSEC / 2;
++		data->bucket = which_bucket(KTIME_MAX, nr_iowaiters);
++	}
+ 
+ 	if (unlikely(drv->state_count <= 1 || latency_req == 0) ||
+ 	    ((data->next_timer_ns < drv->states[1].target_residency_ns ||
+@@ -303,16 +324,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		return 0;
+ 	}
+ 
+-	/* Round up the result for half microseconds. */
+-	predicted_us = div_u64(data->next_timer_ns *
+-			       data->correction_factor[data->bucket] +
+-			       (RESOLUTION * DECAY * NSEC_PER_USEC) / 2,
+-			       RESOLUTION * DECAY * NSEC_PER_USEC);
+-	/* Use the lowest expected idle interval to pick the idle state. */
+-	predicted_ns = (u64)min(predicted_us,
+-				get_typical_interval(data, predicted_us)) *
+-				NSEC_PER_USEC;
+-
+ 	if (tick_nohz_tick_stopped()) {
+ 		/*
+ 		 * If the tick is already stopped, the cost of possible short
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 496b88c069756..111fd05373606 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -98,6 +98,8 @@
+ #include <linux/sched/clock.h>
+ #include <linux/tick.h>
+ 
++#include "gov.h"
++
+ /*
+  * The PULSE value is added to metrics when they grow and the DECAY_SHIFT value
+  * is used for decreasing metrics on a regular basis.
+@@ -105,12 +107,6 @@
+ #define PULSE		1024
+ #define DECAY_SHIFT	3
+ 
+-/*
+- * Idle state target residency threshold used for deciding whether or not to
+- * check the time till the closest expected timer event.
+- */
+-#define RESIDENCY_THRESHOLD_NS	(15 * NSEC_PER_USEC)
+-
+ /**
+  * struct teo_bin - Metrics used by the TEO cpuidle governor.
+  * @intercepts: The "intercepts" metric.

@@ -144,17 +144,33 @@ index f3c9d49f0f2a..28363bfa3e4c 100644
  	ktime_t delta, delta_tick;
  	int i, idx;
  
-@@ -287,8 +287,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+@@ -268,8 +219,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		data->needs_update = 0;
  	}
- 	data->next_timer_ns = delta;
  
 -	nr_iowaiters = nr_iowait_cpu(dev->cpu);
--	data->bucket = which_bucket(data->next_timer_ns, nr_iowaiters);
-+	data->bucket = which_bucket(data->next_timer_ns);
+-
+ 	/* Find the shortest expected idle interval. */
+ 	predicted_ns = get_typical_interval(data) * NSEC_PER_USEC;
+ 	if (predicted_ns > RESIDENCY_THRESHOLD_NS) {
+@@ -283,7 +232,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		}
+ 
+ 		data->next_timer_ns = delta;
+-		data->bucket = which_bucket(data->next_timer_ns, nr_iowaiters);
++		data->bucket = which_bucket(data->next_timer_ns);
+ 
+ 		/* Round up the result for half microseconds. */
+ 		timer_us = div_u64((RESOLUTION * DECAY * NSEC_PER_USEC) / 2 +
+@@ -301,7 +250,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		 */
+ 		data->next_timer_ns = KTIME_MAX;
+ 		delta_tick = TICK_NSEC / 2;
+-		data->bucket = which_bucket(KTIME_MAX, nr_iowaiters);
++		data->bucket = which_bucket(KTIME_MAX);
+ 	}
  
  	if (unlikely(drv->state_count <= 1 || latency_req == 0) ||
- 	    ((data->next_timer_ns < drv->states[1].target_residency_ns ||
-
 @@ -328,15 +277,8 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
  		 */
  		if (predicted_ns < TICK_NSEC)
