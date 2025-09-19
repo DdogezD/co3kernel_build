@@ -92,7 +92,7 @@ jobs:
           patch -p1 < opt_memmove.patch || true
           patch -p1 < opt_memset.patch || true
           patch -p1 < cpuidle_dont_rtn.patch || true
-          patch -p1 < opt_cpuidle.patch || true
+          patch -p1 < cpuidle_rej_entry.patch || true
           patch -p1 < mm_dont_reserve.patch || true
           patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
           patch -p1 < less_migra_cost.patch || true
