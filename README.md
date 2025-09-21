@@ -26,8 +26,7 @@
   - memcpy, memmove, memset, memutil
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: 针对不对称的 cpu 拓扑优化
-- fair: 去除 numa 相关的入参
-- fair: 在 idle_cpu() 前检查 need_resched()
+- fair: 去除 numa 相关的参数
 - fair: PELT 半衰期(32ms) 减少到 16ms
 - 优化 DynamIQ Shared Unit
   - fair: 减少任务迁移开销
