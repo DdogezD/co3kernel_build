@@ -1,0 +1,52 @@
+From 7082053e7b31e9ea05338dbee4c4ef1e1c5d17c4 Mon Sep 17 00:00:00 2001
+From: Liujie Xie <xieliujie@oppo.com>
+Date: Mon, 12 Jul 2021 20:37:25 +0800
+Subject: [PATCH] ANDROID: ashmem: Export is_ashmem_file
+
+Export is_ashmem_file function which will be used
+by the minidump module to get ashmem info.
+
+Pzqqt:
+The is_ashmem_file function has been removed in Sultan's rewrite of ashmem code.
+Now that is_ashmem_file is part of KMI, we need to add it back.
+
+Bug: 193397560
+Change-Id: I5b7816ad4775e5cf2c4f41c28b1c8dacc2c85b7e
+Signed-off-by: liuhailong <liuhailong@oppo.com>
+Signed-off-by: Liujie Xie <xieliujie@oppo.com>
+---
+ drivers/staging/android/ashmem.c | 9 +++++++++
+ drivers/staging/android/ashmem.h | 2 ++
+ 2 files changed, 11 insertions(+)
+
+diff --git a/drivers/staging/android/ashmem.c b/drivers/staging/android/ashmem.c
+index 267f5e30fc2a8..80b19e6598c63 100644
+--- a/drivers/staging/android/ashmem.c
++++ b/drivers/staging/android/ashmem.c
+@@ -317,6 +317,15 @@ static const struct file_operations ashmem_fops = {
+ #endif
+ };
+ 
++/*
++ * is_ashmem_file - Check if struct file* is associated with ashmem
++ */
++int is_ashmem_file(struct file *file)
++{
++	return file->f_op == &ashmem_fops;
++}
++EXPORT_SYMBOL_GPL(is_ashmem_file);
++
+ static struct miscdevice ashmem_misc = {
+ 	.minor = MISC_DYNAMIC_MINOR,
+ 	.name = "ashmem",
+diff --git a/drivers/staging/android/ashmem.h b/drivers/staging/android/ashmem.h
+index 1a478173cd214..9fa72ed7b7edb 100644
+--- a/drivers/staging/android/ashmem.h
++++ b/drivers/staging/android/ashmem.h
+@@ -21,4 +21,6 @@
+ #define COMPAT_ASHMEM_SET_PROT_MASK	_IOW(__ASHMEMIOC, 5, unsigned int)
+ #endif
+ 
++int is_ashmem_file(struct file *file);
++
+ #endif	/* _LINUX_ASHMEM_H */

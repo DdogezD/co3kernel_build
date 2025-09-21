@@ -1,0 +1,105 @@
+From 63a0438816d48091d094e8a4a68979553fc5e6df Mon Sep 17 00:00:00 2001
+From: John Stultz <john.stultz@linaro.org>
+Date: Thu, 15 Dec 2011 18:51:04 -0800
+Subject: [PATCH] ANDROID: ashmem: Add shmem_set_file to mm/shmem.c
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+NOT FOR STAGING
+This patch re-adds the original shmem_set_file to mm/shmem.c
+and converts ashmem.c back to using it.
+
+Change-Id: Ie604c9f8f4d0ee6bc2aae1a96d261c8373a1a2dc
+CC: Brian Swetland <swetland@google.com>
+CC: Colin Cross <ccross@android.com>
+CC: Arve Hjønnevåg <arve@android.com>
+CC: Dima Zavin <dima@android.com>
+CC: Robert Love <rlove@google.com>
+CC: Greg KH <greg@kroah.com>
+Signed-off-by: John Stultz <john.stultz@linaro.org>
+[Sultan Alsawaf: forward port to 5.10]
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ drivers/staging/android/ashmem.c | 17 ++++-------------
+ include/linux/mm.h               |  2 ++
+ mm/shmem.c                       | 13 +++++++++----
+ 3 files changed, 15 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/staging/android/ashmem.c b/drivers/staging/android/ashmem.c
+index d45cf3ef5dbda..267f5e30fc2a8 100644
+--- a/drivers/staging/android/ashmem.c
++++ b/drivers/staging/android/ashmem.c
+@@ -227,24 +227,15 @@ static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
+ 
+ 	get_file(asma->file);
+ 
+-	/*
+-	 * XXX - Reworked to use shmem_zero_setup() instead of
+-	 * shmem_set_file while we're in staging. -jstultz
+-	 */
+ 	if (vma->vm_flags & VM_SHARED) {
+-		int ret = shmem_zero_setup(vma);
+-		if (ret) {
+-			fput(asma->file);
+-			return ret;
+-		}
++		shmem_set_file(vma, asma->file);
+ 	} else {
+ 		vma_set_anonymous(vma);
++		if (vma->vm_file)
++			fput(vma->vm_file);
++		vma->vm_file = asma->file;
+ 	}
+ 
+-	if (vma->vm_file)
+-		fput(vma->vm_file);
+-	vma->vm_file = asma->file;
+-
+ 	return 0;
+ }
+ 
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index 7563ca8d15697..1e6cf6c1ecb65 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -1769,6 +1769,8 @@ extern void pagefault_out_of_memory(void);
+ 
+ extern void show_free_areas(unsigned int flags, nodemask_t *nodemask);
+ 
++void shmem_set_file(struct vm_area_struct *vma, struct file *file);
++
+ #ifdef CONFIG_MMU
+ extern bool can_do_mlock(void);
+ #else
+diff --git a/mm/shmem.c b/mm/shmem.c
+index 23fc50a3e6bcf..ecdb917d03e5c 100644
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -4186,6 +4186,14 @@ struct file *shmem_file_setup(const char *name, loff_t size, unsigned long flags
+ }
+ EXPORT_SYMBOL_GPL(shmem_file_setup);
+ 
++void shmem_set_file(struct vm_area_struct *vma, struct file *file)
++{
++	if (vma->vm_file)
++		fput(vma->vm_file);
++	vma->vm_file = file;
++	vma->vm_ops = &shmem_vm_ops;
++}
++
+ /**
+  * shmem_file_setup_with_mnt - get an unlinked file living in tmpfs
+  * @mnt: the tmpfs mount where the file will be created
+@@ -4219,10 +4227,7 @@ int shmem_zero_setup(struct vm_area_struct *vma)
+ 	if (IS_ERR(file))
+ 		return PTR_ERR(file);
+ 
+-	if (vma->vm_file)
+-		fput(vma->vm_file);
+-	vma->vm_file = file;
+-	vma->vm_ops = &shmem_vm_ops;
++	shmem_set_file(vma, file);
+ 
+ 	if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE) &&
+ 			((vma->vm_start + ~HPAGE_PMD_MASK) & HPAGE_PMD_MASK) <

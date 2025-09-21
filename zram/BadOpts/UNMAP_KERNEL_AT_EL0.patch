@@ -1,0 +1,27 @@
+From 25e1fddabc38961e21be97e97a26e4172d9821c8 Mon Sep 17 00:00:00 2001
+From: Miguel de Dios <migueldedios@google.com>
+Date: Sun, 22 Nov 2020 19:09:32 +0300
+Subject: [PATCH] gki_defconfig: Disable UNMAP_KERNEL_AT_EL0
+
+This causes a perf regresion on the *_syscall bionic benchmarks.
+
+Bug: 120161344
+Change-Id: I313510c64471b8109456b30314a3d85a1d1d5cae
+Signed-off-by: Miguel de Dios <migueldedios@google.com>
+Signed-off-by: Adithya R <gh0strider.2k18.reborn@gmail.com>
+---
+ arch/arm64/configs/gki_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
+index b74f295a0aa0..a056c6c6ed9c 100644
+--- a/arch/arm64/configs/gki_defconfig
++++ b/arch/arm64/configs/gki_defconfig
+@@ -59,6 +59,7 @@ CONFIG_ARCH_QCOM=y
+ CONFIG_SCHED_MC=y
+ CONFIG_NR_CPUS=32
+ CONFIG_PARAVIRT_TIME_ACCOUNTING=y
++# CONFIG_UNMAP_KERNEL_AT_EL0 is not set
+ # CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
+ CONFIG_ARM64_SW_TTBR0_PAN=y
+ CONFIG_COMPAT=y
