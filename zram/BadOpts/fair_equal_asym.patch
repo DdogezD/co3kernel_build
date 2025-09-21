@@ -1,0 +1,37 @@
+From 0758b08ac4d955a58dcb62c12b22f183d401728a Mon Sep 17 00:00:00 2001
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Tue, 12 Mar 2024 12:27:34 -0700
+Subject: [PATCH] sched/fair: Set asym priority equally for all CPUs in a
+ performance domain
+
+All CPUs in a performance domain share the same capacity, and therefore
+aren't different from one another when distinguishing between which one is
+better for asymmetric packing.
+
+Instead of unfairly prioritizing lower-numbered CPUs within the same
+performance domain, treat all CPUs in a performance domain equally for
+asymmetric packing.
+
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ kernel/sched/fair.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 969502f70ef2..d8c4088c4e7a 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -139,11 +139,11 @@ __setup("sched_thermal_decay_shift=", setup_sched_thermal_decay_shift);
+ 
+ #ifdef CONFIG_SMP
+ /*
+- * For asym packing, by default the lower numbered CPU has higher priority.
++ * For asym packing, by default the lower max-capacity CPU has higher priority.
+  */
+ int __weak arch_asym_cpu_priority(int cpu)
+ {
+-	return -cpu;
++	return -arch_scale_cpu_capacity(cpu);
+ }
+ 
+ /*
