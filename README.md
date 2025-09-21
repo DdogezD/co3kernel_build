@@ -25,12 +25,17 @@
 - 重写的 mem* func
   - memcpy, memmove, memset, memutil
 - mm: 不为 user/admin 登录而保留内存 (~136m)
+- fair: 针对不对称的 cpu 拓扑优化
+- fair: 去除 numa 相关的入参
+- fair: 在 idle_cpu() 前检查 need_resched()
+- fair: PELT 半衰期(32ms) 减少到 16ms
 - 优化 DynamIQ Shared Unit
   - fair: 减少任务迁移开销
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
 - ttwu 流程中省略多余的获取内存屏障操作
 - vmalloc: 能够分配大块虚拟内存
+- selinux: 去除对 audit 的依赖以提升性能
 - selinux: 避免动态内存分配
 
 - **以及一些上游 backport...**
