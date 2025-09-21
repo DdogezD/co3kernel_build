@@ -52,7 +52,7 @@ jobs:
           sed -i 's/ -dirty//g' kernel_platform/common/scripts/setlocalversion
           sed -i 's/ -dirty//g' kernel_platform/msm-kernel/scripts/setlocalversion
 
-      - name: Add Patches
+      - name: Add co3kernel
         run: |
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
@@ -94,6 +94,20 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
+          patch -p1 < drm_ttm_dma.patch || true
+          patch -p1 < dma_buf_1.patch || true
+          patch -p1 < dma_buf_2.patch || true
+          patch -p1 < dma_buf_3.patch || true
+          patch -p1 < dma_buf_3_1.patch || true
+          patch -p1 < dma_buf_4.patch || true
+          patch -p1 < dma_buf_5.patch || true
+          patch -p1 < dma_buf_6.patch || true
+          patch -p1 < dma_buf_7.patch || true
+          patch -p1 < dma_buf_8.patch || true
+          patch -p1 < dma_buf_9.patch || true
+          patch -p1 < dma_buf_10.patch || true
+          patch -p1 < spdup_ioctl.patch || true
+          #patch -p1 < spdup_ioctl_fix_kmi.patch || true
           patch -p1 < teo_avoid_stop_tick.patch || true
           patch -p1 < teo_do_not_call.patch || true
           patch -p1 < teo_skip_call.patch || true
