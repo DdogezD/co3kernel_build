@@ -1,0 +1,81 @@
+From 3bc79f1433a83ff7d7458509d5cc43788fb67cfc Mon Sep 17 00:00:00 2001
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Sun, 12 Feb 2023 16:34:36 -0800
+Subject: [PATCH] selinux: Remove audit dependency
+
+Auditing comes with a lot of overhead due to string assembly via
+vsnprintf. It isn't actually needed to make SELinux work, so remove
+SELinux's artificial dependency on it to make it possible to use SELinux
+without the unneeded overhead.
+
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ include/linux/audit.h     | 5 +++++
+ include/linux/lsm_audit.h | 8 ++++++++
+ security/Makefile         | 2 +-
+ security/selinux/Kconfig  | 2 +-
+ 4 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/audit.h b/include/linux/audit.h
+index 51b1b7054a233..ae0ed11666b5c 100644
+--- a/include/linux/audit.h
++++ b/include/linux/audit.h
+@@ -268,6 +268,11 @@ static inline int audit_signal_info(int sig, struct task_struct *t)
+ 	return 0;
+ }
+ 
++static inline int audit_update_lsm_rules(void)
++{
++	return 0;
++}
++
+ #endif /* CONFIG_AUDIT */
+ 
+ #ifdef CONFIG_AUDIT_COMPAT_GENERIC
+diff --git a/include/linux/lsm_audit.h b/include/linux/lsm_audit.h
+index 97a8b21eb0333..d864a8c74706f 100644
+--- a/include/linux/lsm_audit.h
++++ b/include/linux/lsm_audit.h
+@@ -122,8 +122,16 @@ int ipv4_skb_to_auditdata(struct sk_buff *skb,
+ int ipv6_skb_to_auditdata(struct sk_buff *skb,
+ 		struct common_audit_data *ad, u8 *proto);
+ 
++#ifdef CONFIG_AUDIT
+ void common_lsm_audit(struct common_audit_data *a,
+ 	void (*pre_audit)(struct audit_buffer *, void *),
+ 	void (*post_audit)(struct audit_buffer *, void *));
++#else
++static inline void common_lsm_audit(struct common_audit_data *a,
++	void (*pre_audit)(struct audit_buffer *, void *),
++	void (*post_audit)(struct audit_buffer *, void *))
++{
++}
++#endif
+ 
+ #endif
+diff --git a/security/Makefile b/security/Makefile
+index 18121f8f85cd7..7f879edce1f93 100644
+--- a/security/Makefile
++++ b/security/Makefile
+@@ -14,7 +14,7 @@ obj-$(CONFIG_SECURITY)			+= security.o
+ obj-$(CONFIG_SECURITYFS)		+= inode.o
+ obj-$(CONFIG_SECURITY_SELINUX)		+= selinux/
+ obj-$(CONFIG_SECURITY_SMACK)		+= smack/
+-obj-$(CONFIG_SECURITY)			+= lsm_audit.o
++obj-$(CONFIG_AUDIT)			+= lsm_audit.o
+ obj-$(CONFIG_SECURITY_TOMOYO)		+= tomoyo/
+ obj-$(CONFIG_SECURITY_APPARMOR)		+= apparmor/
+ obj-$(CONFIG_SECURITY_YAMA)		+= yama/
+diff --git a/security/selinux/Kconfig b/security/selinux/Kconfig
+index d30348fbe0df3..ef65ed4c4957d 100644
+--- a/security/selinux/Kconfig
++++ b/security/selinux/Kconfig
+@@ -1,7 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ config SECURITY_SELINUX
+ 	bool "SELinux Support"
+-	depends on SECURITY_NETWORK && AUDIT && NET && INET
++	depends on SECURITY_NETWORK && NET && INET
+ 	select NETWORK_SECMARK
+ 	default n
+ 	help
