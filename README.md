@@ -20,7 +20,6 @@
 - 去除 psi 中的 debug
 - dma_buf: 去除 debug 以加速 ioctl
 - arm64: clear_page 对齐 16b
-- cpufreq: 在 scaling_min_freq 加入限制
 - cpuidle: 去除 menu 的 iowait
 - 重写的 ashmem
 - 重写的 mem* func
