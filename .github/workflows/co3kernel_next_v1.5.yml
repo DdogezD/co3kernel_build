@@ -75,9 +75,6 @@ jobs:
           patch -p1 < lazy_RCU.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_spectre.patch || true
-          patch -p1 < cpufreq_rewrite_limit.patch || true
-          patch -p1 < cpufreq_add_limit.patch || true
-          patch -p1 < cpufreq_unlikely_warp.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
           patch -p1 < ashmem_rewrite.patch || true
           patch -p1 < ashmem_shmem_set_file.patch || true
