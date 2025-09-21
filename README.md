@@ -18,6 +18,7 @@
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
+- dma_buf: 去除 debug 以加速 ioctl
 - arm64: clear_page 对齐 16b
 - cpufreq: 在 scaling_min_freq 加入限制
 - cpuidle: 去除 menu 的 iowait
@@ -33,7 +34,7 @@
 - vmalloc: 能够分配大块虚拟内存
 - selinux: 避免动态内存分配
 
-- **以及一些上游补丁...**
+- **以及一些上游 backport...**
 
 ---
 **使用最小作用域 hooks (v1.5) 的 KernelSU Next**
