@@ -88,7 +88,12 @@ jobs:
           patch -p1 < mm_dont_reserve.patch || true
           patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
           patch -p1 < less_migra_cost.patch || true
+          patch -p1 < fair_pelt_16ms.patch || true
+          patch -p1 < fair_no_numa.patch || true
+          patch -p1 < fair_need_resched.patch || true
+          patch -p1 < fair_equal_asym.patch || true
           patch -p1 < fs_reduce_cache.patch || true
+          patch -p1 < selinux_rm_audit_deps.patch || true
           patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
           patch -p1 < blk_disable_iostats.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
