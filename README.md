@@ -13,6 +13,9 @@
 - 启用 llvm Polly 优化器
 - 启用 LAZY RCU
 - 禁用 KFENCE & UBSAN
+- ⚠ 禁用 Meltdown 和 Spectre 缓解措施以提升性能
+  - CONFIG_UNMAP_KERNEL_AT_EL0 is not set
+  - CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
@@ -33,9 +36,7 @@
 - **以及一些上游补丁...**
 
 ---
-**使用最小作用域 hooks 的 KernelSU Next**
-
-使用 [Coccinelle](https://github.com/coccinelle/coccinelle) 准确应用 hooks 补丁
+**使用最小作用域 hooks (v1.5) 的 KernelSU Next**
 
 最小化内核 hooks 的性能开销
 
