@@ -5,7 +5,7 @@
 ---
 **大量性能调优**
 
-合并了部分来自 **sultan, arter97, pzqqt, brokestar, ztc1997, hfdem** 等内核开发者的优化 *(排名不分先后)*
+合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交，排名不分先后。
 
 - 启用 o3 优化编译
 - 为 armv9-a 优化编译
@@ -40,9 +40,16 @@
 - **以及一些上游 backport...**
 
 ---
-**使用最小作用域 hooks (v1.5) 的 KernelSU Next**
+**使用最小作用域 hooks (v1.5) 的 KernelSU Next (v1.1.0)**
 
 最小化内核 hooks 的性能开销
+
+---
+**(todo) 风驰游戏调度** *- Experimental*
+
+支持启用风驰游戏调度 (scx)
+
+可使用修补后的 Scene 调度控制 (暂未实现)
 
 ---
 **支持 tmpfs 扩展属性**
