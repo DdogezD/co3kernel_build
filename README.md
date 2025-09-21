@@ -13,14 +13,14 @@
 - 启用 llvm Polly 优化器
 - 启用 LAZY RCU
 - 禁用 KFENCE & UBSAN
-- ⚠ 禁用 Meltdown 和 Spectre 缓解措施以提升性能
-  - CONFIG_UNMAP_KERNEL_AT_EL0 is not set
+- ⚠ 禁用 Spectre 缓解措施以提升性能
   - CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
 - arm64: clear_page 对齐 16b
-- cpuidle: 去除 cpuidle: menu 的 iowait
+- cpufreq: 在 scaling_min_freq 加入限制
+- cpuidle: 去除 menu 的 iowait
 - 重写的 ashmem
 - 重写的 mem* func
   - memcpy, memmove, memset, memutil
