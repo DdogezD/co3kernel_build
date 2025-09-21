@@ -94,7 +94,6 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
-          patch -p1 < drm_ttm_dma.patch || true
           patch -p1 < dma_buf_1.patch || true
           patch -p1 < dma_buf_2.patch || true
           patch -p1 < dma_buf_3.patch || true
