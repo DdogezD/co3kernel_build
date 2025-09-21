@@ -1,0 +1,173 @@
+name: co3kernel_build_v1.5
+on:
+  workflow_dispatch:
+    inputs:
+      KERNEL_NAME:
+        description: "自定义 Linux version 字符串"
+        required: true
+        default: '-android13-8-o-01140-g043e86cdd499'
+      KERNEL_VER:
+        description: "自定义 KernelSU 版本号"
+        required: true
+        default: 'default'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "DogEZ"
+          git config --global user.email "DdogezD@gmail.com"
+
+      - name: Install dependencies
+        run: |
+          sudo apt update && sudo apt upgrade -y
+          sudo apt install -y python3 git curl
+
+      - name: Install repo tool
+        run: |
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo
+          sudo mv ~/repo /usr/local/bin/repo
+
+      - name: Initialize repo and sync
+        run: |
+          mkdir kernel_workspace && cd kernel_workspace
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8550 -m oneplus_open_v.xml --depth=1
+          repo sync
+          rm kernel_platform/common/android/abi_gki_protected_exports_* || echo "No protected exports!"
+          rm kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
+          sed -i 's/ -dirty//g' kernel_platform/common/scripts/setlocalversion
+          sed -i 's/ -dirty//g' kernel_platform/msm-kernel/scripts/setlocalversion
+
+      - name: Add Patches
+        run: |
+          cd kernel_workspace
+          git clone https://github.com/DdogezD/co3kernel_build.git
+          cd kernel_platform/common
+          rm -f lib/lz4/lz4_compress.c
+          rm -f lib/lz4/lz4_decompress.c
+          rm -f lib/lz4/lz4defs.h
+          rm -f lib/lz4/lz4hc_compress.c
+          mv fs/f2fs/lz4armv8 lib/lz4/
+          cp -r ../../co3kernel_build/zram/lz4/* ./lib/lz4/
+          cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
+          cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
+          patch -p1 < lz4_1.10.0.patch || true
+          cp ../../co3kernel_build/zram/BadOpts/*.patch ./
+          patch -p1 < scope_min_manual_hooks_v1.5.patch || true
+          patch -p1 < armv9-a.patch || true
+          patch -p1 < opt_for_a510.patch || true
+          patch -p1 < polly1.patch || true
+          patch -p1 < polly2.patch || true
+          patch -p1 < lazy_RCU.patch || true
+          patch -p1 < disable_KFENCE_UBSAN.patch || true
+          patch -p1 < defconfig_miscs.patch || true
+          #patch -p1 < cpufreq_unlikely_warp.patch || true
+          patch -p1 < xiaomi_zram_opt.patch || true
+          patch -p1 < ashmem_rewrite.patch || true
+          patch -p1 < ashmem_shmem_set_file.patch || true
+          patch -p1 < ashmem_keep_kmi.patch || true
+          patch -p1 < opt_memutil.patch || true
+          patch -p1 < opt_memcpy.patch || true
+          patch -p1 < opt_memmove.patch || true
+          patch -p1 < opt_memset.patch || true
+          patch -p1 < cpuidle_dont_rtn.patch || true
+          patch -p1 < cpuidle_rej_entry.patch || true
+          patch -p1 < mm_dont_reserve.patch || true
+          patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
+          patch -p1 < less_migra_cost.patch || true
+          patch -p1 < fs_reduce_cache.patch || true
+          patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
+          patch -p1 < blk_disable_iostats.patch || true
+          patch -p1 < do_not_collect_iostats.patch || true
+          patch -p1 < skip_barrier_ttwu.patch || true
+          patch -p1 < clear_page_ali_16b.patch || true
+          patch -p1 < teo_avoid_stop_tick.patch || true
+          patch -p1 < teo_do_not_call.patch || true
+          patch -p1 < teo_skip_call.patch || true
+          patch -p1 < teo_gather_stats.patch || true
+          patch -p1 < teo_avoid_assign.patch || true
+          patch -p1 < teo_rm_recent_interc.patch || true
+          patch -p1 < teo_dont_count_non_ex.patch || true
+          patch -p1 < menu_skip_tick_nohz.patch || true
+          patch -p1 < menu_cleanup.patch || true
+          patch -p1 < menu_fix_typo.patch || true
+          patch -p1 < menu_rm_iowait_influ.patch || true
+          patch -p1 < drm_allow_null.patch || true
+          patch -p1 < no_drm_dbg.patch || true
+          patch -p1 < no_psi_dbg.patch || true
+          patch -p1 < posix_fix_races.patch || true
+          patch -p1 < vmalloc1.patch || true
+          patch -p1 < vmalloc2.patch || true
+          patch -p1 < vmalloc3.patch || true
+          patch -p1 < vmalloc4.patch || true
+          patch -p1 < vmalloc5.patch || true
+          patch -p1 < vmalloc6.patch || true
+          patch -p1 < vmalloc7.patch || true
+          
+          rm -rf kernel_workspace/co3kernel_build
+
+      - name: Add KernelSU Next
+        run: |
+          cd kernel_workspace/kernel_platform
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          cd ./KernelSU-Next
+          MAKE_FILE="kernel/Makefile"
+          DEFAULT_VERSION=11998
+          if [[ "$KERNEL_VER" == "default" ]]; then
+            KSU_VERSION=$(($(git rev-list --count HEAD) + 10200))
+          else
+            KSU_VERSION="$KERNEL_VER"
+          fi
+          sed -i "s/^DKSU_VERSION.*/DKSU_VERSION=${KSU_VERSION}/" "${MAKE_FILE}"
+
+      - name: Add defconfigs
+        run: |
+          cd kernel_workspace/kernel_platform
+          echo 'CONFIG_LLVM_POLLY=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_DEFAULT_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+          sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
+          sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
+          sed -i 's/check_defconfig//' ./common/build.config.gki
+
+      - name: Spoof Linux version
+        run: |
+          cd kernel_workspace/kernel_platform
+          sed -i '$s|echo "\$res"|echo "\${{ github.event.inputs.KERNEL_NAME }}"|' ./common/scripts/setlocalversion
+          sed -i "/stable_scmversion_cmd/s/-maybe-dirty//g" ./build/kernel/kleaf/impl/stamp.bzl
+
+      - name: Build kernel
+        run: |
+          cd kernel_workspace
+          LTO=thin ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
+
+      - name: Prepare Kernel
+        run: |
+         cp kernel_workspace/kernel_platform/out/msm-kernel-kalama-gki/dist/Image ./kernel_workspace/kernel
+
+      - name: Upload Image
+        uses: actions/upload-artifact@v4
+        with:
+         name: co3kernel
+         path: kernel_workspace/kernel
