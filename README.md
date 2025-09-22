@@ -7,23 +7,33 @@
 
 合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交，排名不分先后。
 
+⚠ 禁用 Spectre 缓解措施 (禁用基于历史的分支预测) 以提升性能
+
+⚠ 禁用 Meltdown 缓解措施 (在 EL0 上作 unmap 处理) 以提升性能
+
+⚠ 禁用软件模拟的 PAN 以提升性能
+
 - 启用 o3 优化编译
 - 为 armv9-a 优化编译
 - 为 a510 优化编译
 - 启用 llvm Polly 优化器
 - 启用 LAZY RCU
 - 禁用 KFENCE & UBSAN
-- ⚠ 禁用 Spectre 缓解措施以提升性能
-  - CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
 - dma_buf: 去除 debug 以加速 ioctl
+- selinux: 去除对 audit 的依赖以提升性能
+- selinux: 避免动态内存分配
 - arm64: clear_page 对齐 16b
 - cpuidle: 去除 menu 的 iowait
+- vmalloc: 能够分配大块虚拟内存
 - 重写的 ashmem
-- 重写的 mem* func
-  - memcpy, memmove, memset, memutil
+- 重写的 mem*
+  - memcpy
+  - memmove
+  - memset
+  - memutil
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: 针对不对称的 cpu 拓扑优化
 - fair: 去除 numa 相关的参数
@@ -33,9 +43,6 @@
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
 - ttwu 流程中省略多余的获取内存屏障操作
-- vmalloc: 能够分配大块虚拟内存
-- selinux: 去除对 audit 的依赖以提升性能
-- selinux: 避免动态内存分配
 
 - **以及一些上游 backport...**
 
