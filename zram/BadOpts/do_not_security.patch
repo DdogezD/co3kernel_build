@@ -1,29 +1,12 @@
 diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
 --- a/arch/arm64/configs/gki_defconfig
 +++ b/arch/arm64/configs/gki_defconfig
-@@ -59,7 +59,8 @@
+@@ -59,6 +59,8 @@
  CONFIG_SCHED_MC=y
  CONFIG_NR_CPUS=32
  CONFIG_PARAVIRT_TIME_ACCOUNTING=y
--CONFIG_ARM64_SW_TTBR0_PAN=y
 +# CONFIG_UNMAP_KERNEL_AT_EL0 is not set
 +# CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
  CONFIG_COMPAT=y
  CONFIG_ARMV8_DEPRECATED=y
  CONFIG_SWP_EMULATION=y
-
-diff --git a/arch/arm64/include/asm/thread_info.h b/arch/arm64/include/asm/thread_info.h
---- a/arch/arm64/include/asm/thread_info.h
-+++ b/arch/arm64/include/asm/thread_info.h
-@@ -23,8 +23,10 @@
-  */
- struct thread_info {
- 	unsigned long		flags;		/* low level flags */
--#ifdef CONFIG_ARM64_SW_TTBR0_PAN
-+#if defined(CONFIG_ARM64_SW_TTBR0_PAN) || (!defined(CONFIG_ARM64_SW_TTBR0_PAN) && defined(__GENKSYMS__))
- 	u64			ttbr0;		/* saved TTBR0_EL1 */
-+#else
-+	u64			unused;		/* HACK: KABI preservation, DO NOT USE! */
- #endif
- 	union {
- 		u64		preempt_count;	/* 0 => preemptible, <0 => bug */
