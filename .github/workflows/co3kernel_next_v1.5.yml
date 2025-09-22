@@ -139,7 +139,7 @@ jobs:
       - name: Add KernelSU Next
         run: |
           cd kernel_workspace/kernel_platform
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s v1.1.0
           cd ./KernelSU-Next
           MAKE_FILE="kernel/Makefile"
           DEFAULT_VERSION=11998
