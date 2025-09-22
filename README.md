@@ -11,9 +11,11 @@ Custom Optimized OnePlus Open Kernel
 
 ⚙️ KernelSU Next: v1.1.0
 
-⚠ 禁用 Spectre 缓解措施 (禁用基于历史的分支预测) 以提升性能
+⚠ 禁用软件模拟的 PAN 以提升性能
 
 ⚠ 禁用 Meltdown 缓解措施 (在 EL0 上作 unmap 处理) 以提升性能
+
+⚠ 禁用 Spectre 缓解措施 (禁用基于历史的分支预测) 以提升性能
 
 - 启用 o3 优化编译
 - 为 armv9-a 优化编译
