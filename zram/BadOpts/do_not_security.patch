@@ -1,11 +1,12 @@
 diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
 --- a/arch/arm64/configs/gki_defconfig
 +++ b/arch/arm64/configs/gki_defconfig
-@@ -59,6 +59,7 @@
+@@ -59,6 +59,8 @@
  CONFIG_SCHED_MC=y
  CONFIG_NR_CPUS=32
  CONFIG_PARAVIRT_TIME_ACCOUNTING=y
 +# CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY is not set
- CONFIG_ARM64_SW_TTBR0_PAN=y
++# CONFIG_ARM64_SW_TTBR0_PAN is not set
  CONFIG_COMPAT=y
  CONFIG_ARMV8_DEPRECATED=y
+ CONFIG_SWP_EMULATION=y
