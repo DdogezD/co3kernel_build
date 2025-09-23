@@ -29,8 +29,6 @@ Custom Optimized OnePlus Open Kernel
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
-- dma_buf: backport 上游更新
-- dma_buf: 去除 debug 以加速 ioctl
 - selinux: 去除对 audit 的依赖以提升性能
 - selinux: 避免动态内存分配
 - arm64: clear_page 对齐 16b
@@ -41,7 +39,6 @@ Custom Optimized OnePlus Open Kernel
   - memcpy
   - memmove
   - memset
-  - memutil
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: 针对不对称的 cpu 拓扑优化
 - fair: 去除 numa 相关的参数
