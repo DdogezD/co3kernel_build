@@ -5,7 +5,7 @@
 
 合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交, 排名不分先后。
 
-## 特别感谢
+## ❤ 特别感谢
 **Pzqqt, brokestar233** 提供了开发指导
 
 **Cloud_Yun** 提供了开发指导, 移植了 SCX 调速器
@@ -60,10 +60,10 @@
 🧩 CO³Kernel 附加模块
 -
 
-- 支持控制内建的 scx 调速器
+- 支持控制内建的 SCX 调速器
   - Auxiliary_Standalone: 主动根据配置的应用列表来切换风驰游戏调度
-  - Auxiliary_ScenePatcher: 修补 Scene 调度，对游戏使用风驰游戏调度
-  - Disable: 不使用风驰游戏调度
+  - Auxiliary_ScenePatcher: 修补 Scene 调度，对游戏切换风驰游戏调度
+  - Disable: 不主动切换风驰游戏调度
 - 配置 I/O 调速器为 none
 - 禁用假电池容量预留显示
 - 关闭 coresight
