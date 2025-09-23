@@ -35,7 +35,7 @@ Custom Optimized OnePlus Open Kernel
 - cpuidle: 去除 menu 的 iowait
 - vmalloc: backport 上游更新
 - 重写的 ashmem
-- 重写的 mem*
+- 优化的 mem*
   - memcpy
   - memmove
   - memset
