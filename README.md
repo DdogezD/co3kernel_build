@@ -33,6 +33,8 @@ Custom Optimized OnePlus Open Kernel
 - selinux: 避免动态内存分配
 - arm64: clear_page 对齐 16b
 - cpuidle: 去除 menu 的 iowait
+- sched idle loop 中省略多余的获取内存屏障
+- ttwu 流程中省略多余的获取内存屏障
 - vmalloc: backport 上游更新
 - 重写的 ashmem
 - 优化的 mem*
@@ -40,15 +42,11 @@ Custom Optimized OnePlus Open Kernel
   - memmove
   - memset
 - mm: 不为 user/admin 登录而保留内存 (~136m)
-- fair: 针对不对称的 cpu 拓扑优化
-- fair: 去除 numa 相关的参数
-- fair: PELT 半衰期(32ms) 减少到 16ms
+- fair: PELT 半衰期 32ms 减少到 16ms
 - 优化 DynamIQ Shared Unit
   - fair: 减少任务迁移开销
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
-- ttwu 流程中省略多余的获取内存屏障操作
-
 ---
 **(todo) 风驰游戏调度** *- Experimental*
 
