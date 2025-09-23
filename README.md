@@ -1,5 +1,5 @@
 # CO³Kernel 
-**Custom Optimized OnePlus Open Kernel**
+**Custom OnePlus Open Optimized Kernel**
 
 这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
 
