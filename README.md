@@ -5,12 +5,17 @@
 
 合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交, 排名不分先后。
 
+## 特别感谢
+**Pzqqt, brokestar233** 提供了开发指导
+
+**Cloud_Yun** 提供了开发指导, 移植了 SCX 调速器
+
 **🏁 特性**
 -
 
 ⚙️ 伪装官方内核 uname (latest NA)
 
-⚙️ SCX 调速器
+⚙️ SCX 调速器 - experimental
 
 ⚙️ KernelSU Scope Minimized Hooks: v1.5
 
