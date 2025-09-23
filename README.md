@@ -21,7 +21,6 @@ Custom Optimized OnePlus Open Kernel
 - 为 armv9-a 优化编译
 - 为 a510 优化编译
 - 启用 llvm Polly 优化器
-- 启用 LAZY RCU
 - 禁用 KFENCE & UBSAN
 - tmpfs: 支持拓展属性
 - tcp拥塞算法: westwood+
