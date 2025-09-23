@@ -23,7 +23,7 @@ Custom Optimized OnePlus Open Kernel
 - 启用 llvm Polly 优化器
 - 禁用 KFENCE & UBSAN
 - tmpfs: 支持拓展属性
-- tcp拥塞算法: westwood+
+- tcp 拥塞算法: westwood+
 - lz4: v1.10.0
 - BLK/BLKdev 不收集 io stat
 - 去除 drm 中的 debug
