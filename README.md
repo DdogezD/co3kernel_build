@@ -1,12 +1,17 @@
 # CO³Kernel 
-Custom Optimized OnePlus Open Kernel
--
-这是为 **Hedwig (OnePlus Open)** 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
+**Custom Optimized OnePlus Open Kernel**
+
+这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
 
 合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交, 排名不分先后。
 
-**特性：**
+**🏁 特性**
 -
+
+⚙️ 伪装官方内核 uname (latest NA)
+
+⚙️ SCX 调速器
+
 ⚙️ KernelSU Scope Minimized Hooks: v1.5
 
 ⚙️ KernelSU Next: v1.1.0
@@ -46,29 +51,11 @@ Custom Optimized OnePlus Open Kernel
   - fair: 减少任务迁移开销
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
----
-**(todo) 风驰游戏调度** *- Experimental*
 
-支持启用风驰游戏调度 (scx)
+🧩 CO³Kernel 附加模块
+-
 
-可使用修补后的 Scene 调度控制 (暂未实现)
-
----
-**伪装最新 (NA) Linux 版本**
-
-避免内核名特征检查
-
----
-**使用官方 Build 脚本编译**
-
-同步最新上游
-尽可能保留官方配置
-
----
-## 致谢
-
-- [OnePlusOSS](https://github.com/OnePlusOSS/kernel_manifest) / [oneplus_sm8550](https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8550)
-- [KernelSU](https://github.com/tiann/KernelSU)
-- [KernelSU Next](https://github.com/KernelSU-Next/KernelSU-Next)
-- [KernelSU Coccinelle](https://github.com/devnoname120/kernelsu-coccinelle)
-- [Action_OnePlus_MKSU_SUSFS](https://github.com/ShirkNeko/Action_OnePlus_MKSU_SUSFS)
+- 支持控制内建的 scx 调速器
+- 配置 I/O 调速器为 none
+- 去除假电池容量显示
+- 关闭 coresight
