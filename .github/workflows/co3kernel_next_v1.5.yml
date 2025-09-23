@@ -98,24 +98,7 @@ jobs:
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < idle_mem_barrier.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
-          patch -p1 < lazy_preempt_hook.patch || true
-          patch -p1 < lazy_preempt.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
-          #patch -p1 < dma_buf_1.patch || true
-          #patch -p1 < dma_buf_2.patch || true
-          #patch -p1 < dma_buf_3.patch || true
-          #patch -p1 < dma_buf_3_1.patch || true
-          #patch -p1 < dma_buf_4.patch || true
-          #patch -p1 < dma_buf_5.patch || true
-          #patch -p1 < dma_buf_6.patch || true
-          #patch -p1 < dma_buf_7.patch || true
-          #patch -p1 < dma_buf_8.patch || true
-          #patch -p1 < dma_buf_9.patch || true
-          #patch -p1 < dma_buf_10.patch || true
-          #patch -p1 < dma_buf_11.patch || true
-          #patch -p1 < dma_buf_12.patch || true
-          #patch -p1 < spdup_ioctl.patch || true
-          #patch -p1 < spdup_ioctl_fix_kmi.patch || true
           patch -p1 < teo_avoid_stop_tick.patch || true
           patch -p1 < teo_do_not_call.patch || true
           patch -p1 < teo_skip_call.patch || true
@@ -130,7 +113,6 @@ jobs:
           patch -p1 < drm_allow_null.patch || true
           patch -p1 < no_drm_dbg.patch || true
           patch -p1 < no_psi_dbg.patch || true
-          patch -p1 < posix_fix_races.patch || true
           patch -p1 < vmalloc1.patch || true
           patch -p1 < vmalloc2.patch || true
           patch -p1 < vmalloc3.patch || true
