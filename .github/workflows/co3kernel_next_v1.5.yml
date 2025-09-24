@@ -159,7 +159,7 @@ jobs:
           echo 'CONFIG_HMBIRD_SCHED_GKI=y' >> ./msm-kernel/arch/arm64/configs/vendor/kalama_GKI.config
 
           sed -i 's/check_defconfig//' ./common/build.config.gki
-          sed -i 's/check_defconfig//' ./msm-kernel/build.config.gki
+          #sed -i 's/check_defconfig//' ./msm-kernel/build.config.gki
 
       - name: Spoof Linux version
         run: |
