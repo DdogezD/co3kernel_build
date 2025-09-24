@@ -110,7 +110,7 @@ new file mode 100644
 @@ -0,0 +1,5 @@
 +config HMBIRD_SCHED_GKI
 +	tristate "GKI Support for HMBIRD_SCHED"
-+	default n
++	default y
 +	help
 +	  Enable GKI Support for HMBIRD_SCHED.
 diff --git a/kernel/sched/lunar_bsp_sched_ext/Makefile b/kernel/sched/lunar_bsp_sched_ext/Makefile
