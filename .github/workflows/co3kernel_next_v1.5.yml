@@ -155,7 +155,6 @@ jobs:
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
-          echo 'CONFIG_HMBIRD_SCHED_GKI=y' >> ./common/arch/arm64/configs/gki_defconfig
           
           sed -i 's/check_defconfig//' ./common/build.config.gki
 
