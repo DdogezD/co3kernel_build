@@ -1,0 +1,5541 @@
+From 443225f7a10b705a59662b18b5741f8b8037cd58 Mon Sep 17 00:00:00 2001
+From: DogEZ <127666673+DdogezD@users.noreply.github.com>
+Date: Wed, 24 Sep 2025 13:21:55 +0800
+Subject: [PATCH] Add SCX
+
+---
+ Kconfig                                       |    2 +
+ include/trace/hooks/sched.h                   |    8 +
+ kernel/sched/Makefile                         |    1 +
+ kernel/sched/core.c                           |    5 +
+ kernel/sched/lunar_bsp_sched_ext/Kconfig      |    5 +
+ kernel/sched/lunar_bsp_sched_ext/Makefile     |    2 +
+ .../lunar_bsp_sched_ext/cpufreq_scx_main.c    |  989 ++++++++++++
+ .../hmbird_gki/lunar_task_struct_ext.c        |  202 +++
+ .../hmbird_gki/lunar_task_struct_ext.h        |   77 +
+ .../hmbird_gki/sched_ext.h                    |   34 +
+ .../hmbird_gki/scx_hooks.c                    |  104 ++
+ .../hmbird_gki/scx_hooks.h                    |   29 +
+ .../lunar_bsp_sched_ext/hmbird_gki/scx_main.c | 1045 +++++++++++++
+ .../lunar_bsp_sched_ext/hmbird_gki/scx_main.h |  475 ++++++
+ .../hmbird_gki/scx_sched_gki.c                | 1320 +++++++++++++++++
+ .../hmbird_gki/scx_util_track.c               |  580 ++++++++
+ .../hmbird_gki/trace_sched_ext.h              |  313 ++++
+ kernel/sched/lunar_bsp_sched_ext/main.c       |   27 +
+ .../lunar_bsp_sched_ext/scx_shadow_tick.c     |  128 ++
+ kernel/sched/vendor_hooks.c                   |    2 +
+ kernel/time/tick-sched.c                      |    1 +
+ 21 files changed, 5349 insertions(+)
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/Kconfig
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/Makefile
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/cpufreq_scx_main.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.h
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/sched_ext.h
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.h
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.h
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_sched_gki.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_util_track.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/hmbird_gki/trace_sched_ext.h
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/main.c
+ create mode 100644 kernel/sched/lunar_bsp_sched_ext/scx_shadow_tick.c
+
+diff --git a/Kconfig b/Kconfig
+--- a/Kconfig
++++ b/Kconfig
+@@ -23,6 +23,8 @@ source "init/Kconfig"
+ 
+ source "kernel/Kconfig.freezer"
+ 
++source "kernel/sched/lunar_bsp_sched_ext/Kconfig"
++
+ source "fs/Kconfig.binfmt"
+ 
+ source "mm/Kconfig"
+diff --git a/include/trace/hooks/sched.h b/include/trace/hooks/sched.h
+--- a/include/trace/hooks/sched.h
++++ b/include/trace/hooks/sched.h
+@@ -318,6 +318,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_do_sched_yield,
+ 	TP_PROTO(struct rq *rq),
+ 	TP_ARGS(rq), 1);
+ 
++DECLARE_RESTRICTED_HOOK(android_rvh_before_do_sched_yield,
++	TP_PROTO(long *unused),
++	TP_ARGS(unused), 1);
++
+ DECLARE_HOOK(android_vh_free_task,
+ 	TP_PROTO(struct task_struct *p),
+ 	TP_ARGS(p));
+@@ -428,6 +432,10 @@ DECLARE_HOOK(android_vh_sched_setaffinity_early,
+ 	TP_PROTO(struct task_struct *p, const struct cpumask *new_mask, int *retval),
+ 	TP_ARGS(p, new_mask, retval));
+ 
++DECLARE_HOOK(android_vh_tick_nohz_idle_stop_tick,
++	TP_PROTO(void *unused),
++	TP_ARGS(unused));
++
+ DECLARE_RESTRICTED_HOOK(android_rvh_update_rt_rq_load_avg,
+ 	TP_PROTO(u64 now, struct rq *rq, struct task_struct *tsk, int running),
+ 	TP_ARGS(now, rq, tsk, running), 1);
+diff --git a/kernel/sched/Makefile b/kernel/sched/Makefile
+--- a/kernel/sched/Makefile
++++ b/kernel/sched/Makefile
+@@ -38,4 +38,5 @@ obj-$(CONFIG_CPU_ISOLATION) += isolation.o
+ obj-$(CONFIG_PSI) += psi.o
+ obj-$(CONFIG_SCHED_CORE) += core_sched.o
+ obj-$(CONFIG_SCHED_WALT) += walt/
++obj-$(CONFIG_HMBIRD_SCHED_GKI) += lunar_bsp_sched_ext/
+ obj-$(CONFIG_ANDROID_VENDOR_HOOKS) += vendor_hooks.o
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -8375,6 +8375,11 @@ static void do_sched_yield(void)
+ {
+ 	struct rq_flags rf;
+ 	struct rq *rq;
++	long skip = 0;
++
++	trace_android_rvh_before_do_sched_yield(&skip);
++	if(skip)
++		return;
+ 
+ 	rq = this_rq_lock_irq(&rf);
+ 
+diff --git a/kernel/sched/lunar_bsp_sched_ext/Kconfig b/kernel/sched/lunar_bsp_sched_ext/Kconfig
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/Kconfig
+@@ -0,0 +1,5 @@
++config HMBIRD_SCHED_GKI
++	tristate "GKI Support for HMBIRD_SCHED"
++	default n
++	help
++	  Enable GKI Support for HMBIRD_SCHED.
+diff --git a/kernel/sched/lunar_bsp_sched_ext/Makefile b/kernel/sched/lunar_bsp_sched_ext/Makefile
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/Makefile
+@@ -0,0 +1,2 @@
++obj-$(CONFIG_HMBIRD_SCHED_GKI) += lunar_bsp_sched_ext.o
++lunar_bsp_sched_ext-y += main.o cpufreq_scx_main.o scx_shadow_tick.o hmbird_gki/lunar_task_struct_ext.o hmbird_gki/scx_main.o hmbird_gki/scx_sched_gki.o hmbird_gki/scx_util_track.o
+\ No newline at end of file
+diff --git a/kernel/sched/lunar_bsp_sched_ext/cpufreq_scx_main.c b/kernel/sched/lunar_bsp_sched_ext/cpufreq_scx_main.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/cpufreq_scx_main.c
+@@ -0,0 +1,989 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++
++#include "./hmbird_gki/scx_main.h"
++
++unsigned int sysctl_scx_gov_debug;
++static int cpufreq_gov_debug(void) {return sysctl_scx_gov_debug;}
++
++/*debug level for scx_gov*/
++#define DEBUG_SYSTRACE (1 << 0)
++#define DEBUG_FTRACE   (1 << 1)
++#define DEBUG_KMSG     (1 << 2)
++
++#define scx_gov_debug(fmt, ...) \
++	pr_info("[scx_gov][%s] "fmt, __func__, ##__VA_ARGS__)
++
++#define scx_gov_err(fmt, ...) \
++	pr_err("[scx_gov][%s] "fmt, __func__, ##__VA_ARGS__)
++
++#define gov_trace_printk(fmt, args...)	\
++do {										\
++		trace_printk("[scx_gov] "fmt, args);	\
++} while (0)
++
++#define DEFAULT_TARGET_LOAD 90
++
++#undef MAX_CLUSTERS
++#define MAX_CLUSTERS 4
++static int gov_flag[MAX_CLUSTERS] = {0};
++struct proc_dir_entry *scx_dir;
++struct scx_sched_cluster {
++	struct list_head	list;
++	struct cpumask	cpus;
++	int id;
++};
++__read_mostly int scx_num_sched_clusters;
++#define MAX_CLS_NUM 5
++struct scx_sched_cluster *scx_cluster[MAX_CLS_NUM];
++struct list_head scx_cluster_head;
++#define for_each_scx_cluster(cluster) \
++	list_for_each_entry_rcu(cluster, &scx_cluster_head, list)
++
++
++static struct irq_work scx_cpufreq_irq_work;
++
++struct scx_gov_tunables {
++	struct gov_attr_set		attr_set;
++	unsigned int			target_loads;
++	int				soft_freq_max;
++	int				soft_freq_min;
++	bool				apply_freq_immediately;
++};
++
++struct scx_gov_policy {
++	struct cpufreq_policy	*policy;
++
++	struct scx_gov_tunables	*tunables;
++	struct list_head	tunables_hook;
++
++	raw_spinlock_t		update_lock;	/* For shared policies */
++	unsigned int		next_freq;
++	unsigned int		freq_cached;
++	/* The next fields are only needed if fast switch cannot be used: */
++	struct kthread_work	work;
++	struct mutex		work_lock;
++	struct kthread_worker	worker;
++	struct task_struct	*thread;
++	bool			work_in_progress;
++	unsigned int	target_load;
++};
++
++struct scx_gov_cpu {
++	unsigned int		reasons;
++	struct scx_gov_policy	*sg_policy;
++	unsigned int		cpu;
++
++	unsigned long		util;
++	unsigned int		flags;
++};
++
++static DEFINE_PER_CPU(struct scx_gov_cpu, scx_gov_cpu);
++static DEFINE_PER_CPU(struct scx_gov_tunables *, cached_tunables);
++static DEFINE_MUTEX(global_tunables_lock);
++static struct scx_gov_tunables *global_tunables;
++
++static void scx_gov_work(struct kthread_work *work)
++{
++	struct scx_gov_policy *sg_policy = container_of(work, struct scx_gov_policy, work);
++	unsigned int freq;
++	unsigned long flags;
++
++	/*
++	 * Hold sg_policy->update_lock shortly to handle the case where:
++	 * incase sg_policy->next_freq is read here, and then updated by
++	 * scx_gov_deferred_update() just before work_in_progress is set to false
++	 * here, we may miss queueing the new update.
++	 *
++	 * Note: If a work was queued after the update_lock is released,
++	 * scx_gov_work() will just be called again by kthread_work code; and the
++	 * request will be proceed before the scx_gov thread sleeps.
++	 */
++	raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
++	freq = sg_policy->next_freq;
++	raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
++
++	mutex_lock(&sg_policy->work_lock);
++	__cpufreq_driver_target(sg_policy->policy, freq, CPUFREQ_RELATION_L);
++	mutex_unlock(&sg_policy->work_lock);
++}
++
++static inline void scx_irq_work_queue(struct irq_work *work)
++{
++	if (likely(cpu_online(raw_smp_processor_id())))
++		irq_work_queue(work);
++	else
++		irq_work_queue_on(work, cpumask_any(cpu_online_mask));
++}
++
++void run_scx_irq_work_rollover(void)
++{
++	scx_irq_work_queue(&scx_cpufreq_irq_work);
++}
++
++/* next_freq = (max_freq * scale_time* 100)/(window_size * TL * arch_scale_cpu_capacity) */
++#define DIV64_U64_ROUNDUP(X, Y) div64_u64((X) + (Y - 1), Y)
++static unsigned int get_next_freq(struct scx_gov_policy *sg_policy, u64 prev_runnable_sum)
++{
++	struct cpufreq_policy *policy = sg_policy->policy;
++	unsigned int freq = policy->cpuinfo.max_freq, next_f;
++	unsigned int window_size_tl, cluster_tl;
++	u64 divisor;
++	int cpu = cpumask_first(policy->cpus);
++	cluster_tl = DEFAULT_TARGET_LOAD;
++	if (sg_policy->tunables) {
++		cluster_tl = sg_policy->tunables->target_loads;
++	}
++
++	window_size_tl = mult_frac(scx_sched_ravg_window, cluster_tl, 100);
++	divisor = DIV64_U64_ROUNDUP(window_size_tl * arch_scale_cpu_capacity(cpu), freq);
++	next_f = DIV64_U64_ROUNDUP(prev_runnable_sum << SCHED_CAPACITY_SHIFT, divisor);
++
++	if (cpufreq_gov_debug() & DEBUG_FTRACE)
++		gov_trace_printk("cluster[%d] max_freq[%d] win_tl[%d] cpu_cap[%lu] divisor[%llu] next_f[%d]\n",
++			cpu, freq, window_size_tl, arch_scale_cpu_capacity(cpu), divisor, next_f);
++
++	return next_f;
++}
++
++static unsigned int soft_freq_clamp(struct scx_gov_policy *sg_policy, unsigned int target_freq)
++{
++	struct cpufreq_policy *policy = sg_policy->policy;
++	int soft_freq_max = sg_policy->tunables->soft_freq_max;
++	int soft_freq_min = sg_policy->tunables->soft_freq_min;
++
++	if (soft_freq_min >= 0 && soft_freq_min > target_freq) {
++		target_freq = soft_freq_min;
++	}
++	if (soft_freq_max >= 0 && soft_freq_max < target_freq) {
++		target_freq = soft_freq_max;
++	}
++
++	if (cpufreq_gov_debug() & DEBUG_FTRACE)
++		gov_trace_printk("cluster[%d] max_freq[%d] min_freq[%d] freq[%d]\n",
++			policy->cpu, soft_freq_max, soft_freq_min, target_freq);
++
++	return target_freq;
++}
++
++void scx_gov_update_cpufreq(struct cpufreq_policy *policy, u64 prev_runnable_sum)
++{
++	unsigned int next_f;
++	struct scx_gov_policy *sg_policy = policy->governor_data;
++	unsigned long irq_flags;
++
++	raw_spin_lock_irqsave(&sg_policy->update_lock, irq_flags);
++
++	next_f = get_next_freq(sg_policy, prev_runnable_sum);
++	next_f = soft_freq_clamp(sg_policy, next_f);
++	next_f = cpufreq_driver_resolve_freq(policy, next_f);
++	sg_policy->freq_cached = sg_policy->next_freq ? sg_policy->next_freq : next_f;
++	if (sg_policy->next_freq == next_f)
++		goto unlock;
++	sg_policy->next_freq = next_f;
++	if (cpufreq_gov_debug() & DEBUG_FTRACE)
++		gov_trace_printk("cluster[%d] freq[%d] fast[%d]\n", policy->cpu, next_f, policy->fast_switch_enabled);
++	if (policy->fast_switch_enabled)
++		cpufreq_driver_fast_switch(policy, next_f);
++	else
++		kthread_queue_work(&sg_policy->worker, &sg_policy->work);
++
++unlock:
++	raw_spin_unlock_irqrestore(&sg_policy->update_lock, irq_flags);
++}
++
++void scx_gov_update_soft_limit_cpufreq(struct scx_gov_policy *sg_policy)
++{
++	unsigned int next_f;
++	struct cpufreq_policy *policy = sg_policy->policy;
++	unsigned long irq_flags;
++
++	raw_spin_lock_irqsave(&sg_policy->update_lock, irq_flags);
++
++	next_f = soft_freq_clamp(sg_policy, sg_policy->next_freq);
++	next_f = cpufreq_driver_resolve_freq(policy, next_f);
++	if (sg_policy->next_freq == next_f)
++		goto unlock;
++	sg_policy->next_freq = next_f;
++	if (cpufreq_gov_debug() & DEBUG_FTRACE)
++		gov_trace_printk("cluster[%d] freq[%d] fast[%d]\n",
++			policy->cpu, next_f, policy->fast_switch_enabled);
++	if (policy->fast_switch_enabled)
++		cpufreq_driver_fast_switch(policy, next_f);
++	else
++		kthread_queue_work(&sg_policy->worker, &sg_policy->work);
++
++unlock:
++	raw_spin_unlock_irqrestore(&sg_policy->update_lock, irq_flags);
++}
++
++/************************** sysfs interface ************************/
++static inline struct scx_gov_tunables *to_scx_gov_tunables(struct gov_attr_set *attr_set)
++{
++	return container_of(attr_set, struct scx_gov_tunables, attr_set);
++}
++
++static DEFINE_MUTEX(min_rate_lock);
++
++
++static ssize_t target_loads_show(struct gov_attr_set *attr_set, char *buf)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	return sprintf(buf, "%d\n", tunables->target_loads);
++}
++
++static ssize_t target_loads_store(struct gov_attr_set *attr_set, const char *buf,
++					size_t count)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	unsigned int new_target_loads = DEFAULT_TARGET_LOAD;
++
++	if (kstrtouint(buf, 10, &new_target_loads))
++		return -EINVAL;
++
++	tunables->target_loads = new_target_loads;
++	return count;
++}
++
++static ssize_t soft_freq_max_show(struct gov_attr_set *attr_set, char *buf)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	int soft_freq_max = tunables->soft_freq_max;
++
++	if (soft_freq_max < 0) {
++		return sprintf(buf, "max\n");
++	} else {
++		return sprintf(buf, "%d\n", soft_freq_max);
++	}
++}
++
++static ssize_t soft_freq_max_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	struct scx_gov_policy *sg_policy = list_first_entry(&attr_set->policy_list, struct scx_gov_policy, tunables_hook);
++	int new_soft_freq_max = -1;
++
++	if (kstrtoint(buf, 10, &new_soft_freq_max))
++		return -EINVAL;
++
++	if (tunables->soft_freq_max == new_soft_freq_max) {
++		return count;
++	}
++
++	tunables->soft_freq_max = new_soft_freq_max;
++	if (tunables->apply_freq_immediately) {
++		scx_gov_update_soft_limit_cpufreq(sg_policy);
++	}
++
++	return count;
++}
++
++static ssize_t soft_freq_min_show(struct gov_attr_set *attr_set, char *buf)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	int soft_freq_min = tunables->soft_freq_min;
++
++	if (soft_freq_min < 0) {
++		return sprintf(buf, "0\n");
++	} else {
++		return sprintf(buf, "%d\n", soft_freq_min);
++	}
++}
++
++static ssize_t soft_freq_min_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	struct scx_gov_policy *sg_policy = list_first_entry(&attr_set->policy_list, struct scx_gov_policy, tunables_hook);
++	int new_soft_freq_min = -1;
++
++	if (kstrtoint(buf, 10, &new_soft_freq_min))
++		return -EINVAL;
++
++	if (tunables->soft_freq_min == new_soft_freq_min) {
++		return count;
++	}
++
++	tunables->soft_freq_min = new_soft_freq_min;
++	if (tunables->apply_freq_immediately) {
++		scx_gov_update_soft_limit_cpufreq(sg_policy);
++	}
++
++	return count;
++}
++
++static ssize_t soft_freq_cur_show(struct gov_attr_set *attr_set __maybe_unused, char *buf)
++{
++	return sprintf(buf, "none\n");
++}
++
++static ssize_t soft_freq_cur_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	struct scx_gov_policy *sg_policy = list_first_entry(&attr_set->policy_list, struct scx_gov_policy, tunables_hook);
++	int new_soft_freq_cur = -1;
++
++	if (kstrtoint(buf, 10, &new_soft_freq_cur))
++		return -EINVAL;
++
++	if (tunables->soft_freq_max == new_soft_freq_cur && tunables->soft_freq_min == new_soft_freq_cur) {
++		return count;
++	}
++
++	tunables->soft_freq_max = new_soft_freq_cur;
++	tunables->soft_freq_min = new_soft_freq_cur;
++	if (tunables->apply_freq_immediately) {
++		scx_gov_update_soft_limit_cpufreq(sg_policy);
++	}
++
++	return count;
++}
++
++static ssize_t apply_freq_immediately_show(struct gov_attr_set *attr_set, char *buf)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	return sprintf(buf, "%d\n", (int)tunables->apply_freq_immediately);
++}
++
++static ssize_t apply_freq_immediately_store(struct gov_attr_set *attr_set, const char *buf, size_t count)
++{
++	struct scx_gov_tunables *tunables = to_scx_gov_tunables(attr_set);
++	int new_apply_freq_immediately = 0;
++
++	if (kstrtoint(buf, 10, &new_apply_freq_immediately))
++		return -EINVAL;
++
++	tunables->apply_freq_immediately = new_apply_freq_immediately > 0;
++	return count;
++}
++
++ssize_t set_sugov_tl_scx(unsigned int cpu, char *buf)
++{
++	struct cpufreq_policy *policy;
++	struct scx_gov_policy *sg_policy;
++	struct scx_gov_tunables *tunables;
++	struct gov_attr_set *attr_set;
++	size_t count;
++
++	if (!buf)
++		return -EFAULT;
++
++	policy = cpufreq_cpu_get(cpu);
++	if (!policy)
++		return -ENODEV;
++
++	sg_policy = policy->governor_data;
++	if (!sg_policy)
++		return -EINVAL;
++
++	tunables = sg_policy->tunables;
++	if (!tunables)
++		return -ENOMEM;
++
++	attr_set = &tunables->attr_set;
++	count = strlen(buf);
++
++	return target_loads_store(attr_set, buf, count);
++}
++EXPORT_SYMBOL_GPL(set_sugov_tl_scx);
++
++static struct governor_attr target_loads =
++	__ATTR(target_loads, 0664, target_loads_show, target_loads_store);
++
++static struct governor_attr soft_freq_max =
++	__ATTR(soft_freq_max, 0664, soft_freq_max_show, soft_freq_max_store);
++
++static struct governor_attr soft_freq_min =
++	__ATTR(soft_freq_min, 0664, soft_freq_min_show, soft_freq_min_store);
++
++static struct governor_attr soft_freq_cur =
++	__ATTR(soft_freq_cur, 0664, soft_freq_cur_show, soft_freq_cur_store);
++
++static struct governor_attr apply_freq_immediately =
++	__ATTR(apply_freq_immediately, 0664, apply_freq_immediately_show, apply_freq_immediately_store);
++
++static struct attribute *scx_gov_attrs[] = {
++	&target_loads.attr,
++	&soft_freq_max.attr,
++	&soft_freq_min.attr,
++	&soft_freq_cur.attr,
++	&apply_freq_immediately.attr,
++	NULL
++};
++ATTRIBUTE_GROUPS(scx_gov);
++
++static struct kobj_type scx_gov_tunables_ktype = {
++	.default_groups = scx_gov_groups,
++	.sysfs_ops = &governor_sysfs_ops,
++};
++
++/********************** cpufreq governor interface *********************/
++
++struct cpufreq_governor cpufreq_scx_gov;
++
++static struct scx_gov_policy *scx_gov_policy_alloc(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy;
++
++	sg_policy = kzalloc(sizeof(*sg_policy), GFP_KERNEL);
++	if (!sg_policy)
++		return NULL;
++
++	sg_policy->policy = policy;
++	raw_spin_lock_init(&sg_policy->update_lock);
++	return sg_policy;
++}
++
++static inline void scx_gov_cpu_reset(struct scx_gov_policy *sg_policy)
++{
++	unsigned int cpu;
++
++	for_each_cpu(cpu, sg_policy->policy->cpus) {
++		struct scx_gov_cpu *sg_cpu = &per_cpu(scx_gov_cpu, cpu);
++
++		sg_cpu->sg_policy = NULL;
++	}
++}
++
++static void scx_gov_policy_free(struct scx_gov_policy *sg_policy)
++{
++	kfree(sg_policy);
++}
++
++static void scx_irq_work(struct irq_work *irq_work)
++{
++	cpumask_t lock_cpus;
++	struct scx_sched_cluster *cluster;
++	struct cpufreq_policy *policy;
++	struct scx_sched_rq_stats *srq;
++	struct rq *rq;
++	int cpu;
++	int level = 0;
++	u64 wc;
++	unsigned long flags;
++	struct scx_entity *scx;
++
++	cpumask_copy(&lock_cpus, cpu_possible_mask);
++
++	for_each_cpu(cpu, &lock_cpus) {
++		if (level == 0)
++			raw_spin_lock(&cpu_rq(cpu)->__lock);
++		else
++			raw_spin_lock_nested(&cpu_rq(cpu)->__lock, level);
++		level++;
++	}
++
++	wc = scx_sched_clock();
++
++	for_each_scx_cluster(cluster) {
++		cpumask_t cluster_online_cpus;
++		u64 prev_runnable_sum = 0;
++
++		if (gov_flag[cluster->id] == 0)
++			continue;
++		cpumask_and(&cluster_online_cpus, &cluster->cpus, cpu_online_mask);
++		for_each_cpu(cpu, &cluster_online_cpus) {
++			rq = cpu_rq(cpu);
++			scx = get_oplus_ext_entity(rq->curr);
++			if (scx)
++				scx_update_task_ravg(scx, rq->curr, rq, TASK_UPDATE, wc);
++			srq = &per_cpu(scx_sched_rq_stats, cpu);
++			if (cpufreq_gov_debug() & DEBUG_FTRACE)
++				gov_trace_printk("cpu[%d] prev_runnable_sum[%llu]\n", cpu, srq->prev_runnable_sum);
++			prev_runnable_sum = max(prev_runnable_sum, srq->prev_runnable_sum);
++		}
++
++		policy = cpufreq_cpu_get_raw(cpumask_first(&cluster_online_cpus));
++		if (policy == NULL)
++			scx_gov_err("NULL policy [%d]\n", cpumask_first(&cluster_online_cpus));
++		scx_gov_update_cpufreq(policy, prev_runnable_sum);
++	}
++
++	spin_lock_irqsave(&new_sched_ravg_window_lock, flags);
++	if (unlikely(new_scx_sched_ravg_window != scx_sched_ravg_window)) {
++		srq = &per_cpu(scx_sched_rq_stats, smp_processor_id());
++		if (wc < srq->window_start + new_scx_sched_ravg_window) {
++			scx_sched_ravg_window = new_scx_sched_ravg_window;
++			scx_fixup_window_dep();
++		}
++	}
++	spin_unlock_irqrestore(&new_sched_ravg_window_lock, flags);
++
++	for_each_cpu(cpu, &lock_cpus) {
++		raw_spin_unlock(&cpu_rq(cpu)->__lock);
++	}
++}
++
++static int scx_gov_kthread_create(struct scx_gov_policy *sg_policy)
++{
++	struct task_struct *thread;
++	struct sched_attr attr = {
++		.size		= sizeof(struct sched_attr),
++		.sched_policy	= SCHED_DEADLINE,
++		.sched_flags	= SCHED_FLAG_SUGOV,
++		.sched_nice	= 0,
++		.sched_priority	= 0,
++		/*
++		 * Fake (unused) bandwidth; workaround to "fix"
++		 * priority inheritance.
++		 */
++		.sched_runtime	=  1000000,
++		.sched_deadline = 10000000,
++		.sched_period	= 10000000,
++	};
++	struct cpufreq_policy *policy = sg_policy->policy;
++	int ret;
++
++	/* kthread only required for slow path */
++	if (policy->fast_switch_enabled)
++		return 0;
++
++	kthread_init_work(&sg_policy->work, scx_gov_work);
++	kthread_init_worker(&sg_policy->worker);
++	thread = kthread_create(kthread_worker_fn, &sg_policy->worker,
++				"scx_gov:%d",
++				cpumask_first(policy->related_cpus));
++	if (IS_ERR(thread)) {
++		pr_err("failed to create scx_gov thread: %ld\n", PTR_ERR(thread));
++		return PTR_ERR(thread);
++	}
++
++	ret = sched_setattr_nocheck(thread, &attr);
++	if (ret) {
++		kthread_stop(thread);
++		pr_warn("%s: failed to set SCHED_DEADLINE\n", __func__);
++		return ret;
++	}
++
++	sg_policy->thread = thread;
++	kthread_bind_mask(thread, policy->related_cpus);
++	mutex_init(&sg_policy->work_lock);
++
++	wake_up_process(thread);
++
++	return 0;
++}
++
++static void scx_gov_kthread_stop(struct scx_gov_policy *sg_policy)
++{
++	/* kthread only required for slow path */
++	if (sg_policy->policy->fast_switch_enabled)
++		return;
++
++	kthread_flush_worker(&sg_policy->worker);
++	kthread_stop(sg_policy->thread);
++	mutex_destroy(&sg_policy->work_lock);
++}
++
++static struct scx_gov_tunables *scx_gov_tunables_alloc(struct scx_gov_policy *sg_policy)
++{
++	struct scx_gov_tunables *tunables;
++
++	tunables = kzalloc(sizeof(*tunables), GFP_KERNEL);
++	if (tunables) {
++		gov_attr_set_init(&tunables->attr_set, &sg_policy->tunables_hook);
++		if (!have_governor_per_policy())
++			global_tunables = tunables;
++	}
++	return tunables;
++}
++
++static void scx_gov_tunables_free(struct scx_gov_tunables *tunables)
++{
++	if (!have_governor_per_policy())
++		global_tunables = NULL;
++
++	kfree(tunables);
++}
++
++#define DEFAULT_HISPEED_LOAD 90
++static void scx_gov_tunables_save(struct cpufreq_policy *policy,
++		struct scx_gov_tunables *tunables)
++{
++	int cpu;
++	struct scx_gov_tunables *cached = per_cpu(cached_tunables, policy->cpu);
++
++	if (!cached) {
++		cached = kzalloc(sizeof(*tunables), GFP_KERNEL);
++		if (!cached)
++			return;
++
++		for_each_cpu(cpu, policy->related_cpus)
++			per_cpu(cached_tunables, cpu) = cached;
++	}
++}
++
++/*********************************
++ * rebuild scx cluster
++ *********************************/
++
++static inline void move_list(struct list_head *dst, struct list_head *src)
++{
++	struct list_head *first, *last;
++
++	first = src->next;
++	last = src->prev;
++
++	first->prev = dst;
++	dst->prev = last;
++	last->next = dst;
++
++	/* Ensure list sanity before making the head visible to all CPUs. */
++	smp_mb();
++	dst->next = first;
++}
++
++static void get_possible_siblings(int cpuid, struct cpumask *cluster_cpus)
++{
++	int cpu;
++	struct cpu_topology *cpu_topo, *cpuid_topo = &cpu_topology[cpuid];
++
++	if (cpuid_topo->package_id == -1)
++		return;
++
++	for_each_possible_cpu(cpu) {
++		cpu_topo = &cpu_topology[cpu];
++
++		if (cpuid_topo->package_id != cpu_topo->package_id)
++			continue;
++		cpumask_set_cpu(cpu, cluster_cpus);
++	}
++}
++
++static void insert_cluster(struct scx_sched_cluster *cluster, struct list_head *head)
++{
++	struct scx_sched_cluster *tmp;
++	struct list_head *iter = head;
++
++	list_for_each_entry(tmp, head, list) {
++		if (arch_scale_cpu_capacity(cpumask_first(&cluster->cpus))
++			< arch_scale_cpu_capacity(cpumask_first(&tmp->cpus)))
++			break;
++		iter = &tmp->list;
++	}
++
++	list_add(&cluster->list, iter);
++}
++
++static void cleanup_clusters(struct list_head *head)
++{
++	struct scx_sched_cluster *cluster, *tmp;
++
++	list_for_each_entry_safe(cluster, tmp, head, list) {
++		list_del(&cluster->list);
++		scx_num_sched_clusters--;
++		kfree(cluster);
++	}
++}
++
++static struct scx_sched_cluster *alloc_new_cluster(const struct cpumask *cpus)
++{
++	struct scx_sched_cluster *cluster = NULL;
++
++	cluster = kzalloc(sizeof(struct scx_sched_cluster), GFP_ATOMIC);
++	BUG_ON(!cluster);
++
++	INIT_LIST_HEAD(&cluster->list);
++	cluster->cpus = *cpus;
++
++	return cluster;
++}
++
++static inline void add_cluster(const struct cpumask *cpus, struct list_head *head)
++{
++	struct scx_sched_cluster *cluster = NULL;
++
++	cluster = alloc_new_cluster(cpus);
++	insert_cluster(cluster, head);
++
++	scx_cluster[scx_num_sched_clusters] = cluster;
++
++	scx_num_sched_clusters++;
++}
++
++static inline void assign_cluster_ids(struct list_head *head)
++{
++	struct scx_sched_cluster *cluster;
++	unsigned int cpu;
++
++	list_for_each_entry(cluster, head, list) {
++		cpu = cpumask_first(&cluster->cpus);
++		cluster->id = topology_physical_package_id(cpu);
++		scx_gov_debug("assign cluster[%d] cluster_id[%d]\n", cpu, cluster->id);
++	}
++}
++
++static bool scx_build_clusters(void)
++{
++	struct cpumask cpus = *cpu_possible_mask;
++	struct cpumask cluster_cpus;
++	struct list_head new_head;
++	int i;
++
++	INIT_LIST_HEAD(&scx_cluster_head);
++	INIT_LIST_HEAD(&new_head);
++
++	/* If this work failed, our cluster_head can still used with only one cluster struct */
++	for_each_cpu(i, &cpus) {
++		cpumask_clear(&cluster_cpus);
++		get_possible_siblings(i, &cluster_cpus);
++		if (cpumask_empty(&cluster_cpus)) {
++			cleanup_clusters(&new_head);
++			return false;
++		}
++		cpumask_andnot(&cpus, &cpus, &cluster_cpus);
++		add_cluster(&cluster_cpus, &new_head);
++	}
++
++	assign_cluster_ids(&new_head);
++	move_list(&scx_cluster_head, &new_head);
++	return true;
++}
++/*********************************
++ * rebuild scx cluster done
++ *********************************/
++
++static int scx_gov_init(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy;
++	struct scx_gov_tunables *tunables;
++	int ret = 0;
++
++	/* State should be equivalent to EXIT */
++	if (policy->governor_data)
++		return -EBUSY;
++
++	cpufreq_enable_fast_switch(policy);
++
++	sg_policy = scx_gov_policy_alloc(policy);
++	if (!sg_policy) {
++		ret = -ENOMEM;
++		goto disable_fast_switch;
++	}
++
++	ret = scx_gov_kthread_create(sg_policy);
++	if (ret)
++		goto free_sg_policy;
++
++	mutex_lock(&global_tunables_lock);
++
++	if (global_tunables) {
++		if (WARN_ON(have_governor_per_policy())) {
++			ret = -EINVAL;
++			goto stop_kthread;
++		}
++		policy->governor_data = sg_policy;
++		sg_policy->tunables = global_tunables;
++
++		gov_attr_set_get(&global_tunables->attr_set, &sg_policy->tunables_hook);
++		goto out;
++	}
++
++	tunables = scx_gov_tunables_alloc(sg_policy);
++	if (!tunables) {
++		ret = -ENOMEM;
++		goto stop_kthread;
++	}
++
++	tunables->target_loads = DEFAULT_TARGET_LOAD;
++	tunables->soft_freq_max = -1;
++	tunables->soft_freq_min = -1;
++	tunables->apply_freq_immediately = true;
++
++	policy->governor_data = sg_policy;
++	sg_policy->tunables = tunables;
++
++	ret = kobject_init_and_add(&tunables->attr_set.kobj, &scx_gov_tunables_ktype,
++				   get_governor_parent_kobj(policy), "%s",
++				   cpufreq_scx_gov.name);
++	if (ret)
++		goto fail;
++
++	policy->dvfs_possible_from_any_cpu = 1;
++
++out:
++	mutex_unlock(&global_tunables_lock);
++	return 0;
++
++fail:
++	kobject_put(&tunables->attr_set.kobj);
++	policy->governor_data = NULL;
++	scx_gov_tunables_free(tunables);
++
++stop_kthread:
++	scx_gov_kthread_stop(sg_policy);
++	mutex_unlock(&global_tunables_lock);
++
++free_sg_policy:
++	scx_gov_policy_free(sg_policy);
++
++disable_fast_switch:
++	cpufreq_disable_fast_switch(policy);
++
++	pr_err("initialization failed (error %d)\n", ret);
++	return ret;
++}
++
++static void scx_gov_exit(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy = policy->governor_data;
++	struct scx_gov_tunables *tunables = sg_policy->tunables;
++	unsigned int count;
++
++	mutex_lock(&global_tunables_lock);
++
++	count = gov_attr_set_put(&tunables->attr_set, &sg_policy->tunables_hook);
++	policy->governor_data = NULL;
++	if (!count) {
++		scx_gov_tunables_save(policy, tunables);
++		scx_gov_tunables_free(tunables);
++	}
++
++	mutex_unlock(&global_tunables_lock);
++
++	scx_gov_kthread_stop(sg_policy);
++	scx_gov_cpu_reset(sg_policy);
++	scx_gov_policy_free(sg_policy);
++	cpufreq_disable_fast_switch(policy);
++}
++
++static int scx_gov_start(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy = policy->governor_data;
++	unsigned int cpu, cluster_id;
++
++	sg_policy->next_freq = 0;
++
++	for_each_cpu(cpu, policy->cpus) {
++		struct scx_gov_cpu *sg_cpu = &per_cpu(scx_gov_cpu, cpu);
++
++		memset(sg_cpu, 0, sizeof(*sg_cpu));
++		sg_cpu->cpu			= cpu;
++		sg_cpu->sg_policy		= sg_policy;
++	}
++	cpu = cpumask_first(policy->related_cpus);
++	cluster_id = topology_physical_package_id(cpu);
++	scx_gov_debug("start cluster[%d] cluster_id[%d] gov\n", cpu, cluster_id);
++	if (cluster_id < MAX_CLUSTERS)
++		gov_flag[cluster_id] = 1;
++
++	return 0;
++}
++
++static void scx_gov_stop(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy = policy->governor_data;
++	unsigned int cpu, cluster_id;
++	if (!policy->fast_switch_enabled) {
++		irq_work_sync(&scx_cpufreq_irq_work);
++		kthread_cancel_work_sync(&sg_policy->work);
++	}
++
++	cpu = cpumask_first(policy->related_cpus);
++	cluster_id = topology_physical_package_id(cpu);
++	if (cluster_id < MAX_CLUSTERS)
++		gov_flag[cluster_id] = 0;
++	synchronize_rcu();
++}
++
++static void scx_gov_limits(struct cpufreq_policy *policy)
++{
++	struct scx_gov_policy *sg_policy = policy->governor_data;
++	unsigned long flags, now;
++	unsigned int freq, final_freq;
++
++	if (!policy->fast_switch_enabled) {
++		mutex_lock(&sg_policy->work_lock);
++		cpufreq_policy_apply_limits(policy);
++		mutex_unlock(&sg_policy->work_lock);
++	} else {
++		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
++
++		freq = sg_policy->next_freq;
++		/*
++		 * we have serval resources to update freq
++		 * (1) scheduler to run callback
++		 * (2) cpufreq_set_policy to call governor->limtis here
++		 * so we have serveral times here and we must to keep them same
++		 * here we using walt_sched_clock() to keep same with walt scheduler
++		 */
++		now = ktime_get_ns();
++
++		/*
++		 * cpufreq_driver_resolve_freq() has a clamp, so we do not need
++		 * to do any sort of additional validation here.
++		 */
++		final_freq = cpufreq_driver_resolve_freq(policy, freq);
++		cpufreq_driver_fast_switch(policy, final_freq);
++
++		raw_spin_unlock_irqrestore(&sg_policy->update_lock, flags);
++	}
++}
++
++struct cpufreq_governor cpufreq_scx_gov = {
++	.name			= "scx",
++	.owner			= THIS_MODULE,
++	.flags			= CPUFREQ_GOV_DYNAMIC_SWITCHING,
++	.init			= scx_gov_init,
++	.exit			= scx_gov_exit,
++	.start			= scx_gov_start,
++	.stop			= scx_gov_stop,
++	.limits			= scx_gov_limits,
++};
++
++#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SCX
++struct cpufreq_governor *cpufreq_default_governor(void)
++{
++	return &cpufreq_scx_gov;
++}
++#endif
++
++struct ctl_table scx_gov_table[] = {
++	{
++		.procname	= "scx_gov_debug",
++		.data		= &sysctl_scx_gov_debug,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0666,
++		.proc_handler	= proc_dointvec,
++	},
++	{ }
++};
++
++void scx_gov_sysctl_init(void)
++{
++	struct ctl_table_header *hdr;
++
++	sysctl_scx_gov_debug = 0;
++	hdr = register_sysctl("scx_gov", scx_gov_table);
++	kmemleak_not_leak(hdr);
++}
++
++int scx_cpufreq_init(void)
++{
++	int ret = 0;
++	struct scx_sched_cluster *cluster = NULL;
++	scx_gov_sysctl_init();
++	ret = cpufreq_register_governor(&cpufreq_scx_gov);
++	if (ret)
++		return ret;
++
++	if (!scx_build_clusters()) {
++		ret = -1;
++		scx_gov_err("failed to build sched cluster\n");
++		goto out;
++	}
++
++	for_each_sched_cluster(cluster)
++		scx_gov_debug("num_cluster=%d id=%d cpumask=%*pbl capacity=%lu num_cpus=%d\n",
++			scx_num_sched_clusters, cluster->id, cpumask_pr_args(&cluster->cpus),
++			arch_scale_cpu_capacity(cpumask_first(&cluster->cpus)),
++			num_possible_cpus());
++
++	init_irq_work(&scx_cpufreq_irq_work, scx_irq_work);
++	return ret;
++
++out:
++	cpufreq_unregister_governor(&cpufreq_scx_gov);
++	return ret;
++}
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.c b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.c
+@@ -0,0 +1,202 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (C) 2025, LunarKernel Project.
++ *
++ * This code is part of LunarKernel.
++ * Mounting LunarKernel task_struct extension to android_oem_data[].
++ *
++ * File name: lunar_task_struct_ext.c
++ * Author: Cloud_Yun <1770669041@qq.com>
++ * Version: v250821_Dev
++ * Date: 2025/8/21 Thursday
++ */
++
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/smp.h>
++#include <linux/rwsem.h>
++#include <trace/hooks/sched.h>
++#include <../kernel/sched/sched.h>
++
++#include "lunar_task_struct_ext.h"
++
++static struct kmem_cache *lunar_task_struct_cachep;
++
++static void init_lunar_task_struct(struct lunar_task_struct *lts, struct task_struct *tsk)
++{
++    memset(lts, 0, sizeof(struct lunar_task_struct));
++    lts->task = tsk;
++/*#ifdef CONFIG_HMBIRD_SCHED_GKI*/
++	INIT_LIST_HEAD(&lts->scx.dsq_node.fifo);
++	RB_CLEAR_NODE(&lts->scx.dsq_node.priq);
++	lts->scx.sticky_cpu = -1;
++	lts->scx.runnable_at = INITIAL_JIFFIES;
++	lts->scx.gdsq_idx = DEFAULT_CGROUP_DL_IDX;
++/*#endif*/
++}
++
++static void alloc_lunar_task_struct(void *unused, struct task_struct *tsk,
++                                     struct task_struct *orig)
++{
++    struct lunar_task_struct *lts;
++
++    if (!tsk)
++        return;
++
++    if (smp_load_acquire(&tsk->android_oem_data1[LTS_IDX]) != 0)
++        return;
++
++    lts = kmem_cache_alloc(lunar_task_struct_cachep, GFP_ATOMIC);
++    if (!lts)
++        return;
++
++    init_lunar_task_struct(lts, tsk);
++
++    smp_store_release(&tsk->android_oem_data1[LTS_IDX], (u64)lts);
++}
++
++static void free_lunar_task_struct(void *unused, struct task_struct *tsk)
++{
++    struct lunar_task_struct *lts;
++
++    if (!tsk)
++        return;
++
++    lts = (struct lunar_task_struct *)smp_load_acquire(&tsk->android_oem_data1[LTS_IDX]);
++    if (!lts)
++        return;
++
++    smp_store_release(&tsk->android_oem_data1[LTS_IDX], 0);
++
++    kmem_cache_free(lunar_task_struct_cachep, lts);
++}
++
++/*#ifdef CONFIG_HMBIRD_SCHED_GKI*/
++static void scx_sched_fork(void *unused, struct task_struct *p)
++{
++	struct lunar_task_struct *lts = get_lunar_task_struct(p);
++	struct lunar_task_struct *curr_lts = get_lunar_task_struct(current);
++	if (!lts)
++		return;
++
++	lts->scx.dsq = NULL;
++	INIT_LIST_HEAD(&lts->scx.dsq_node.fifo);
++	RB_CLEAR_NODE(&lts->scx.dsq_node.priq);
++	lts->scx.flags = 0;
++	lts->scx.dsq_flags = 0;
++	lts->scx.sticky_cpu = -1;
++	lts->scx.runnable_at = INITIAL_JIFFIES;
++	lts->scx.slice = SCX_SLICE_DFL;
++	lts->scx.sched_prop = 0;
++	lts->scx.ext_flags = 0;
++	lts->scx.prio_backup = 0;
++	lts->scx.gdsq_idx = DEFAULT_CGROUP_DL_IDX;
++	memset(&lts->scx.sts, 0, sizeof(struct scx_task_stats));
++	if (curr_lts) {
++		if ((curr_lts->scx.ext_flags & EXT_FLAG_RT_CHANGED) && !p->sched_reset_on_fork) {
++			lts->scx.ext_flags |= EXT_FLAG_RT_CHANGED;
++			lts->scx.prio_backup = curr_lts->scx.prio_backup;
++		}
++		if (curr_lts->scx.ext_flags & EXT_FLAG_CFS_CHANGED)
++			lts->scx.ext_flags |= EXT_FLAG_CFS_CHANGED;
++	}
++}
++/*#endif*/
++
++static void alloc_lts_mem_for_all_threads(void)
++{
++    struct task_struct *p, *g;
++    u32 iter_cpu;
++
++    read_lock(&tasklist_lock);
++    for_each_process_thread(g, p) {
++        struct lunar_task_struct *lts = NULL;
++
++        lts = (struct lunar_task_struct *)smp_load_acquire(&p->android_oem_data1[LTS_IDX]);
++
++        if (!lts) {
++            lts = kmem_cache_alloc(lunar_task_struct_cachep, GFP_ATOMIC);
++
++            if (lts) {
++                init_lunar_task_struct(lts, p);
++                smp_store_release(&p->android_oem_data1[LTS_IDX], (u64)lts);
++            }
++        }
++    }
++
++    for_each_possible_cpu(iter_cpu) {
++        struct lunar_task_struct *lts = NULL;
++
++        p = cpu_rq(iter_cpu)->idle;
++        lts = (struct lunar_task_struct *)smp_load_acquire(&p->android_oem_data1[LTS_IDX]);
++
++        if (!lts) {
++            lts = kmem_cache_alloc(lunar_task_struct_cachep, GFP_ATOMIC);
++
++            if (lts) {
++                init_lunar_task_struct(lts, p);
++                smp_store_release(&p->android_oem_data1[LTS_IDX], (u64)lts);
++            }
++        }
++    }
++    read_unlock(&tasklist_lock);
++}
++
++static void free_lts_mem_for_all_threads(void)
++{
++    struct task_struct *p, *g;
++    u32 iter_cpu;
++
++    read_lock(&tasklist_lock);
++    for_each_process_thread(g, p) {
++        struct lunar_task_struct *lts;
++        
++        lts = (struct lunar_task_struct *)smp_load_acquire(&p->android_oem_data1[LTS_IDX]);
++
++        if (lts) {
++            smp_store_release(&p->android_oem_data1[LTS_IDX], 0);
++            kmem_cache_free(lunar_task_struct_cachep, lts);
++        }
++    }
++    
++    for_each_possible_cpu(iter_cpu) {
++        struct lunar_task_struct *lts;
++
++        p = cpu_rq(iter_cpu)->idle;
++        lts = (struct lunar_task_struct *)smp_load_acquire(&p->android_oem_data1[LTS_IDX]);
++
++        if (lts) {
++            smp_store_release(&p->android_oem_data1[LTS_IDX], 0);
++            kmem_cache_free(lunar_task_struct_cachep, lts);
++        }
++    }
++    read_unlock(&tasklist_lock);
++}
++
++int lunar_task_struct_ext_init(void)
++{
++    lunar_task_struct_cachep = kmem_cache_create("lunar_task_struct",
++            sizeof(struct lunar_task_struct), 0,
++            SLAB_PANIC | SLAB_ACCOUNT, NULL);
++
++    if (!lunar_task_struct_cachep)
++        return -ENOMEM;
++
++    alloc_lts_mem_for_all_threads();
++
++    register_trace_android_vh_dup_task_struct(alloc_lunar_task_struct, NULL);
++    register_trace_android_vh_free_task(free_lunar_task_struct, NULL);
++/*#ifdef CONFIG_HMBIRD_SCHED_GKI*/
++    register_trace_android_rvh_sched_fork(scx_sched_fork, NULL);
++/*#endif*/
++
++    return 0;
++}
++
++void lunar_task_struct_ext_exit(void)
++{
++    unregister_trace_android_vh_dup_task_struct(alloc_lunar_task_struct, NULL);
++    unregister_trace_android_vh_free_task(free_lunar_task_struct, NULL);
++    free_lts_mem_for_all_threads();
++    kmem_cache_destroy(lunar_task_struct_cachep);
++}
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.h b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.h
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/lunar_task_struct_ext.h
+@@ -0,0 +1,77 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (C) 2025, LunarKernel Project.
++ */
++
++#ifndef _LUNAR_TASK_STRUCT_EXT_H_
++#define _LUNAR_TASK_STRUCT_EXT_H_
++
++#define lts_to_ts(lts)	(lts->task)
++#define LTS_IDX 5
++
++/*#ifdef CONFIG_HMBIRD_SCHED_GKI*/
++#define RAVG_HIST_SIZE 	5
++#define SCX_SLICE_DFL 	(1 * NSEC_PER_MSEC)
++#define SCX_SLICE_INF	U64_MAX
++#define DEFAULT_CGROUP_DL_IDX (8)
++#define EXT_FLAG_RT_CHANGED  	(1 << 0)
++#define EXT_FLAG_CFS_CHANGED 	(1 << 1)
++struct scx_task_stats {
++	u64	mark_start;
++	u64	window_start;
++	u32	sum;
++	u32	sum_history[RAVG_HIST_SIZE];
++	int	cidx;
++	u32	demand;
++	u16	demand_scaled;
++	void	*sdsq;
++};
++/*
++ * The following is embedded in task_struct and contains all fields necessary
++ * for a task to be scheduled by SCX.
++ */
++struct scx_entity {
++	struct scx_dispatch_q	*dsq;
++	struct {
++		struct list_head	fifo;	/* dispatch order */
++		struct rb_node		priq;	/* p->scx.dsq_vtime order */
++	} dsq_node;
++	u32			flags;		/* protected by rq lock */
++	u32			dsq_flags;	/* protected by dsq lock */
++	s32			sticky_cpu;
++	unsigned long		runnable_at;
++	u64			slice;
++	u64			dsq_vtime;
++	int			gdsq_idx;
++	int 			ext_flags;
++	int 			prio_backup;
++	unsigned long		sched_prop;
++	struct scx_task_stats 	sts;
++};
++/*#endif*/
++
++struct lunar_task_struct {
++	struct task_struct *task;
++/*#ifdef CONFIG_HMBIRD_SCHED_GKI*/
++    struct scx_entity scx;
++/*#endif*/
++} ____cacheline_aligned;
++
++static inline struct lunar_task_struct *get_lunar_task_struct(struct task_struct *t)
++{
++    struct lunar_task_struct *lts = NULL;
++
++    if (!t)
++        return NULL;
++
++    lts = (struct lunar_task_struct *)smp_load_acquire(&t->android_oem_data1[LTS_IDX]);
++    if (!lts)
++        return NULL;
++    
++    return lts;
++}
++
++extern int lunar_task_struct_ext_init(void);
++extern void lunar_task_struct_ext_exit(void);
++
++#endif /* _LUNAR_TASK_STRUCT_EXT_H_ */
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/sched_ext.h b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/sched_ext.h
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/sched_ext.h
+@@ -0,0 +1,34 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#ifndef _OPLUS_SCHED_EXT_H
++#define _OPLUS_SCHED_EXT_H
++
++#include "lunar_task_struct_ext.h"
++
++#define SCHED_PROP_TOP_THREAD_SHIFT (8)
++#define SCHED_PROP_TOP_THREAD_MASK  (0xf << SCHED_PROP_TOP_THREAD_SHIFT)
++#define SCHED_PROP_DEADLINE_MASK (0xFF) /* deadline for ext sched class */
++#define SCHED_PROP_DEADLINE_LEVEL1 (1)  /* 1ms for user-aware audio tasks */
++#define SCHED_PROP_DEADLINE_LEVEL2 (2)  /* 2ms for user-aware touch tasks */
++#define SCHED_PROP_DEADLINE_LEVEL3 (3)  /* 4ms for user aware dispaly tasks */
++#define SCHED_PROP_DEADLINE_LEVEL4 (4)  /* 6ms */
++#define SCHED_PROP_DEADLINE_LEVEL5 (5)  /* 8ms */
++#define SCHED_PROP_DEADLINE_LEVEL6 (6)  /* 16ms */
++#define SCHED_PROP_DEADLINE_LEVEL7 (7)  /* 32ms */
++#define SCHED_PROP_DEADLINE_LEVEL8 (8)  /* 64ms */
++#define SCHED_PROP_DEADLINE_LEVEL9 (9)  /* 128ms */
++
++static inline int sched_prop_get_top_thread_id(struct task_struct *p)
++{
++	struct lunar_task_struct *lts = get_lunar_task_struct(p);
++
++	if (!lts) {
++		return -EPERM;
++	}
++
++	return ((lts->scx.sched_prop & SCHED_PROP_TOP_THREAD_MASK) >> SCHED_PROP_TOP_THREAD_SHIFT);
++}
++
++#endif /*_OPLUS_SCHED_EXT_H */
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.c b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.c
+@@ -0,0 +1,104 @@
++// walt.c
++static void scx_enqueue_task_callback(void *unused, struct rq *rq,
++		struct task_struct *p, int flags)
++{
++    enqueue_task_scx(rq, p, 0);
++}
++
++static void scx_dequeue_task_callback(void *unused, struct rq *rq,
++		struct task_struct *p, int flags)
++{
++    dequeue_task_scx(rq, p, 0);
++}
++
++static void scx_tick_entry_callback(void *unused, struct rq *rq)
++{
++    scx_tick_entry(rq);
++}
++
++static void scx_scheduler_tick_callback(void *unused, struct rq *rq)
++{
++    scx_scheduler_tick_handler(rq);
++}
++
++static void scx_schedule_callback(void *unused, struct task_struct *prev,
++	            struct task_struct *next, struct rq *rq)
++{
++    scx_schedule(prev, next, rq);
++}
++
++static void scx_before_do_sched_yield_callback(void *unused, long *skip)
++{
++    scx_skip_yield(skip);
++}
++
++// walt_cfs.c
++static void
++scx_select_task_rq_fair_callback(void *unused, struct task_struct *p, int prev_cpu,
++				int sd_flag, int wake_flags, int *target_cpu)
++{
++    scx_select_task_rq_fair(p, target_cpu, wake_flags, prev_cpu);
++}
++
++static void scx_check_preempt_wakeup_callback(void *unused, struct rq *rq, struct task_struct *p,
++					  bool *preempt, bool *nopreempt, int wake_flags,
++					  struct sched_entity *se, struct sched_entity *pse,
++					  int next_buddy_marked, unsigned int granularity)
++{
++    scx_cfs_check_preempt_wakeup(rq, p, preempt, nopreempt);
++}
++
++static void scx_replace_next_task_fair_callback(void *unused, struct rq *rq, struct task_struct **p,
++					    struct sched_entity **se, bool *repick, bool simple,
++					    struct task_struct *prev)
++{
++    scx_replace_next_task_fair(rq, p, se, repick, simple, prev);
++}
++
++// walt_rt.c
++static void scx_select_task_rq_rt_callback(void *unused, struct task_struct *task, int cpu,
++					int sd_flag, int wake_flags, int *new_cpu)
++{
++    scx_select_task_rq_rt(task, cpu, sd_flag, wake_flags, new_cpu);
++}
++
++static void scx_find_lowest_rq_callback(void *unused, struct task_struct *task,
++				   struct cpumask *lowest_mask, int ret, int *best_cpu)
++{
++    scx_rt_find_lowest_rq(task, lowest_mask, ret, best_cpu);
++}
++
++// walt_lb.c
++static void scx_sched_newidle_balance_callback(void *unused, struct rq *this_rq,
++				       struct rq_flags *rf, int *pulled_task,
++				       int *done)
++{
++    scx_newidle_balance(this_rq, rf, pulled_task, done, false);
++}
++
++static void scx_sched_nohz_balancer_kick_callback(void *unused, struct rq *rq,
++				    unsigned int *flags, int *done)
++{
++    scx_nohz_balancer_kick(rq, flags, done);
++}
++
++static void scx_hooks_register(void)
++{
++    // walt.c
++	register_trace_android_rvh_enqueue_task(scx_enqueue_task_callback, NULL);
++	register_trace_android_rvh_dequeue_task(scx_dequeue_task_callback, NULL);
++	register_trace_android_rvh_tick_entry(scx_tick_entry_callback, NULL);
++	register_trace_android_vh_scheduler_tick(scx_scheduler_tick_callback, NULL);
++	register_trace_android_rvh_schedule(scx_schedule_callback, NULL);
++	register_trace_android_rvh_before_do_sched_yield(scx_before_do_sched_yield_callback, NULL);
++	// walt_cfs.c
++	register_trace_android_rvh_select_task_rq_fair(scx_select_task_rq_fair_callback, NULL);
++	register_trace_android_rvh_check_preempt_wakeup(scx_check_preempt_wakeup_callback, NULL);
++	register_trace_android_rvh_replace_next_task_fair(scx_replace_next_task_fair_callback, NULL);
++	// walt_rt.c
++	register_trace_android_rvh_select_task_rq_rt(scx_select_task_rq_rt_callback, NULL);
++	register_trace_android_rvh_find_lowest_rq(scx_find_lowest_rq_callback, NULL);
++	// walt_lb.c
++	register_trace_android_rvh_sched_newidle_balance(scx_sched_newidle_balance_callback, NULL);
++	register_trace_android_rvh_sched_nohz_balancer_kick(scx_sched_nohz_balancer_kick_callback, NULL);
++}
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.h b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.h
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_hooks.h
+@@ -0,0 +1,29 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM scx_hooks
++
++#if !defined(_TRACE_SCX_HOOKS_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_SCX_HOOKS_H
++
++#include <trace/hooks/vendor_hooks.h>
++DECLARE_HOOK(android_vh_scx_select_cpu_dfl,
++	TP_PROTO(struct task_struct *p, s32 *cpu),
++	TP_ARGS(p, cpu));
++
++DECLARE_HOOK(android_vh_check_preempt_curr_scx,
++	TP_PROTO(struct rq *rq, struct task_struct *p, int wake_flags, int *check_result),
++	TP_ARGS(rq, p, wake_flags, check_result));
++
++#endif /*_TRACE_SCX_HOOKS_H */
++
++#undef TRACE_INCLUDE_PATH
++#define TRACE_INCLUDE_PATH ../drivers/lunar/lunar_oplus_features/sched_ext/hmbird_gki
++
++#undef TRACE_INCLUDE_FILE
++#define TRACE_INCLUDE_FILE scx_hooks
++/* This part must be outside protection */
++#include <trace/define_trace.h>
++
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.c b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.c
+@@ -0,0 +1,1045 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/cpumask.h>
++#include <linux/syscore_ops.h>
++#include <linux/sysctl.h>
++#include <linux/tick.h>
++#include <../kernel/time/tick-sched.h>
++#include <trace/hooks/cpufreq.h>
++#include <asm/processor.h>
++#include "scx_main.h"
++#include "sched_ext.h"
++
++unsigned int scx_stats_trace = false;
++unsigned int dump_info = SCX_DEBUG_PANIC;
++unsigned int sysctl_rt_switch = false;
++unsigned int sysctl_gov_avg_policy = true;
++atomic_t scx_enter_count;
++unsigned int scene_in;
++bool scx_clock_suspended;
++u64 scx_clock_last;
++int frame_per_sec;
++
++struct scx_iso_masks iso_masks;
++u32 SCX_BPF_DSQS_DEADLINE[MAX_BPF_DSQS] = {0, 1, 2, 4, 6, 8, 8, 32, 64, 128};
++u8 cgroup_ids_tab[NUMS_CGROUP_KNIDS];
++DEFINE_PER_CPU(struct scx_dispatch_q[MAX_BPF_DSQS], gdsqs);
++DEFINE_PER_CPU(unsigned long, dsqs_map);
++DEFINE_PER_CPU(struct scx_sched_rq_stats, scx_sched_rq_stats);
++
++struct scene_cfg scx_cfg[SCENE_MAX] = {
++	{
++		.iso_little = " ",
++		.iso_big = "0-3",
++		.iso_partial = "6,7",
++		.iso_exclusive = "4,5",
++		.frame_per_sec = 60,
++		.shadow_tick_enable = true,
++		.idle_ctl = false,
++		.exclusive_sync_ctl = true,
++	},
++	{
++		.iso_little = " ",
++		.iso_big = "0-4",
++		.iso_partial = " ",
++		.iso_exclusive = "5,6,7",
++		.frame_per_sec = 120,
++		.shadow_tick_enable = false,
++		.idle_ctl = true,
++		.exclusive_sync_ctl = false,
++	},
++	{},
++};
++
++noinline int scx_tracing_mark_write(const char *buf)
++{
++	trace_printk(buf);
++	return 0;
++}
++
++static void init_dsq(struct scx_dispatch_q *dsq, u64 dsq_id)
++{
++	memset(dsq, 0, sizeof(*dsq));
++
++	raw_spin_lock_init(&dsq->lock);
++	INIT_LIST_HEAD(&dsq->fifo);
++	dsq->id = dsq_id;
++}
++
++static void init_dsq_at_boot(void)
++{
++	int dsq_id = 0, i, cpu;
++
++	for_each_cpu(cpu, cpu_possible_mask) {
++		for (i = 0; i < MAX_BPF_DSQS; i++) {
++			init_dsq(per_cpu_ptr(&gdsqs[i], cpu), dsq_id++);
++			per_cpu_ptr(&gdsqs[i], cpu)->cpu = cpu;
++			per_cpu_ptr(&gdsqs[i], cpu)->idx = i;
++		}
++		per_cpu(dsqs_map, cpu) = 0;
++	}
++}
++
++static int cgrp_name_to_idx(struct cgroup *cgrp)
++{
++	int idx;
++
++	if (!cgrp)
++		return -1;
++
++	if (!strcmp(cgrp->kn->name, "display")
++					|| !strcmp(cgrp->kn->name, "multimedia") || !strcmp(cgrp->kn->name, "touch"))
++		idx = 5; /* 8ms */
++	else if (!strcmp(cgrp->kn->name, "top-app")
++					|| !strcmp(cgrp->kn->name, "ss-top"))
++		idx = 6; /* 16ms */
++	else if (!strcmp(cgrp->kn->name, "ssfg")
++					|| !strcmp(cgrp->kn->name, "foreground"))
++		idx = 7; /* 32ms */
++	else if (!strcmp(cgrp->kn->name, "bg")
++					|| !strcmp(cgrp->kn->name, "log")
++					|| !strcmp(cgrp->kn->name, "dex2oat")
++					|| !strcmp(cgrp->kn->name, "background"))
++		idx = 9; /* 128ms */
++	else
++		idx = DEFAULT_CGROUP_DL_IDX; /* 64ms */
++
++	debug_printk("initial %s idx = %d\n", cgrp->kn->name, idx);
++	return idx;
++}
++
++static inline void update_cgroup_ids_tab(int ids, struct cgroup *cgrp)
++{
++	if (ids < 0 || ids >= NUMS_CGROUP_KNIDS) {
++		pr_err("update_cgroup_ids_tab idx err!\n");
++		return;
++	}
++	cgroup_ids_tab[ids] = cgrp_name_to_idx(cgrp);
++}
++
++static void init_root_tg(struct cgroup *cgrp, struct task_group *tg)
++{
++	if (!cgrp || !tg)
++			return;
++	update_cgroup_ids_tab(cgrp->kn->id, cgrp);
++}
++
++static void init_level1_tg(struct cgroup *cgrp, struct task_group *tg)
++{
++	if (!cgrp || !tg)
++			return;
++
++	update_cgroup_ids_tab(cgrp->kn->id, cgrp);
++}
++
++#define CREATE_DSQ_LEVEL_WITHIN	(1)
++static struct cgroup *cgroup_ancestor_l1(struct cgroup *cgrp)
++{
++	int i;
++	struct cgroup *anc;
++
++	for (i = 0; i < cgrp->level; i++) {
++		anc = cgroup_get_from_id(cgrp->ancestor_ids[i]);
++		if (CREATE_DSQ_LEVEL_WITHIN != anc->level) {
++			cgroup_put(anc);
++			continue;
++		}
++		return anc;
++	}
++	debug_printk("cgroup = %s\n", cgrp->kn->name);
++	return NULL;
++}
++
++static void init_child_tg(struct cgroup *cgrp, struct task_group *tg)
++{
++	struct cgroup *l1cgrp;
++
++	if (!cgrp || !tg)
++		return;
++
++	l1cgrp = cgroup_ancestor_l1(cgrp);
++	if (l1cgrp)
++		update_cgroup_ids_tab(cgrp->kn->id, l1cgrp);
++}
++
++static void cgrp_dsq_idx_init(struct cgroup *cgrp, struct task_group *tg)
++{
++	switch (cgrp->level) {
++	case 0:
++		init_root_tg(cgrp, tg);
++		break;
++	case 1:
++		init_level1_tg(cgrp, tg);
++		break;
++	default:
++		init_child_tg(cgrp, tg);
++		break;
++	}
++}
++
++static void init_cgroup(void)
++{
++	struct cgroup_subsys_state *css;
++	struct task_group *tg;
++	memset(cgroup_ids_tab, DEFAULT_CGROUP_DL_IDX, NUMS_CGROUP_KNIDS * sizeof(u8));
++
++	css_for_each_descendant_pre(css, &root_task_group.css) {
++		tg = css_tg(css);
++		cgrp_dsq_idx_init(css->cgroup, tg);
++	}
++}
++
++static inline bool scx_schedclass_can_set(struct task_struct *p)
++{
++	struct task_group *tg = p->sched_task_group;
++	struct scx_entity *scx = get_oplus_ext_entity(p);
++	/* For why we choose (MAX_RT_PRIO / 2), see sched_set_fifo(). */
++	if (sysctl_rt_switch) {
++		if ((p->prio < MAX_RT_PRIO) && (p->prio >= MAX_RT_PRIO / 2))
++			return true;
++		if (tg && tg->css.cgroup && !strcmp(tg->css.cgroup->kn->name, "display"))
++			return true;
++		if (scx && (scx->sched_prop & SCHED_PROP_DEADLINE_MASK))
++			return true;
++	}
++	return false;
++}
++
++int hmbird_enable;
++int move_to_same_sched_class(struct task_struct *p, int enable)
++{
++	struct rq *rq;
++	int old_prio, old_static_prio, old_normal_prio;
++	unsigned int old_rt_priority;
++	int ret = 0;
++	struct scx_entity *scx;
++
++	if (READ_ONCE(p->__state) == TASK_DEAD)
++		return ret;
++
++	rq = task_rq(p);
++	if (rq->stop == p)
++		return ret;
++
++	scx = get_oplus_ext_entity(p);
++	if (!scx)
++		return ret;
++
++	old_prio = p->prio;
++	old_static_prio = p->static_prio;
++	old_normal_prio = p->normal_prio;
++	old_rt_priority = p->rt_priority;
++
++	if (enable == 1) {
++		if (scx_schedclass_can_set(p)) {
++			struct sched_param sp = {
++				.sched_priority = 0
++			};
++
++			scx->prio_backup = old_prio;
++			scx->ext_flags |= EXT_FLAG_RT_CHANGED;
++
++			ret = sched_setscheduler_nocheck(p, SCHED_NORMAL, &sp);
++			debug_printk("enbable=%d ret=%d comm=%-12s[%d] prio(%d->%d) static_prio(%d->%d) normal_prio(%d->%d) rt_priority(%d->%u)\n",
++				hmbird_enable, ret, p->comm, p->pid, old_prio, p->prio,
++				old_static_prio, p->static_prio,
++				old_normal_prio, p->normal_prio,
++				old_rt_priority, p->rt_priority);
++		}
++	} else if (enable == 0) {
++		if (scx->ext_flags & EXT_FLAG_RT_CHANGED) {
++			struct sched_param sp = {
++				.sched_priority = (MAX_RT_PRIO - 1 - scx->prio_backup)
++			};
++
++			ret = sched_setscheduler_nocheck(p, SCHED_FIFO, &sp);
++			scx->ext_flags |= ~EXT_FLAG_RT_CHANGED;
++			scx->prio_backup = 0;
++			debug_printk("enbable=%d ret=%d comm=%-12s[%d] prio(%d->%d) static_prio(%d->%d) normal_prio(%d->%d) rt_priority(%d->%u)\n",
++				hmbird_enable, ret, p->comm, p->pid, old_prio, p->prio,
++				old_static_prio, p->static_prio,
++				old_normal_prio, p->normal_prio,
++				old_rt_priority, p->rt_priority);
++		}
++	}
++
++	return ret;
++}
++
++static inline s64 entity_key(struct cfs_rq *cfs_rq, struct sched_entity *se)
++{
++	return (s64)(se->vruntime - cfs_rq->min_vruntime);
++}
++
++void prepare_cfs_tasks(struct task_struct *p, int enable)
++{
++	struct cfs_rq *cfs_rq;
++	struct sched_entity *se;
++	struct scx_entity *scx;
++
++	/* deal with cfs tasks */
++	if (p == NULL || p->prio < MAX_RT_PRIO)
++		return;
++	scx = get_oplus_ext_entity(p);
++	if (!scx)
++		return;
++
++	if (enable == 1) {
++		bool queued, running;
++
++		queued = task_on_rq_queued(p);
++
++		running = task_current(task_rq(p), p);
++		if (running)
++			resched_curr(task_rq(p));
++
++		scx->ext_flags |= EXT_FLAG_CFS_CHANGED;
++	} else if (enable == 0) {
++		bool queued;
++
++		if (scx->ext_flags & EXT_FLAG_CFS_CHANGED) {
++			scx->ext_flags &= ~EXT_FLAG_CFS_CHANGED;
++		} else {
++			debug_printk("untrack task comm=%-12s pid=%d\n", p->comm, p->pid);
++		}
++
++		queued = task_on_rq_queued(p);
++		se = &p->se;
++		for_each_sched_entity(se) {
++			cfs_rq = cfs_rq_of(se);
++		}
++	}
++}
++/* if oplus_task_struct alloc failed, task will not be sched by sched_ext */
++void scx_init_task_struct(struct task_struct *p)
++{
++	struct scx_entity *scx = get_oplus_ext_entity(p);
++	if (!scx)
++		return;
++	scx->dsq		= NULL;
++	INIT_LIST_HEAD(&scx->dsq_node.fifo);
++	RB_CLEAR_NODE(&scx->dsq_node.priq);
++	scx->flags		= 0;
++	scx->dsq_flags	= 0;
++	scx->sticky_cpu	= -1;
++	scx->runnable_at	= INITIAL_JIFFIES;
++	scx->slice		= SCX_SLICE_DFL;
++	scx->ext_flags = 0;
++	scx->prio_backup = 0;
++	memset(&scx->sts, 0, sizeof(struct scx_task_stats));
++}
++
++void scx_task_dump(struct task_struct *p)
++{
++	struct scx_entity *scx = get_oplus_ext_entity(p);
++	if (!scx)
++		return;
++
++	printk_deferred("Task: %.16s-%d\n", p->comm, p->pid);
++	SCHED_PRINT(READ_ONCE(p->__state));
++	SCHED_PRINT(p->cpu);
++	SCHED_PRINT(p->policy);
++	SCHED_PRINT(p->prio);
++	SCHED_PRINT(p->on_cpu);
++	SCHED_PRINT(p->on_rq);
++	SCHED_PRINT(scx->dsq);
++	SCHED_PRINT(scx->flags);
++	SCHED_PRINT(scx->sticky_cpu);
++	SCHED_PRINT(scx->runnable_at);
++	SCHED_PRINT(scx->slice);
++	SCHED_PRINT(scx->ext_flags);
++	SCHED_PRINT(scx->prio_backup);
++	SCHED_PRINT(scx->sts.mark_start);
++	SCHED_PRINT(scx->sts.window_start);
++	SCHED_PRINT(scx->sts.demand);
++	SCHED_PRINT(scx->sts.demand_scaled);
++}
++
++static inline void scx_search_unhashed_task_queued(struct list_head *dead)
++{
++	struct task_struct *stop, *next;
++	struct rq *rq;
++	struct scx_entity *scx;
++	int cpu;
++	for_each_possible_cpu(cpu) {
++		rq = cpu_rq(cpu);
++		stop = rq->stop;
++		WRITE_ONCE(rq->stop, NULL);
++
++		while ((next = pick_migrate_task(rq)) != rq->idle) {
++			if (next->thread_group.prev == LIST_POISON2) {
++				list_add(&next->thread_group, dead);
++			}
++			scx = get_oplus_ext_entity(next);
++			if (scx)
++				scx->sticky_cpu = cpu;
++			deactivate_task(rq, next, DEQUEUE_NOCLOCK);
++		}
++		rq->stop = stop;
++	}
++}
++
++static inline void scx_requeue_migrating_task(struct task_struct *p)
++{
++	int sticky_cpu;
++	struct scx_entity *scx = get_oplus_ext_entity(p);
++	if (scx)
++		sticky_cpu = scx->sticky_cpu;
++	else
++		sticky_cpu = task_rq(p)->cpu;
++	if (task_on_rq_migrating(p)) {
++		if (unlikely(sticky_cpu == -1)) {
++			SCX_BUG("requeue_migrating_task err while reinit");
++		}
++		activate_task(cpu_rq(sticky_cpu), p, ENQUEUE_NOCLOCK);
++		if (scx)
++			scx->sticky_cpu = -1;
++	}
++}
++
++void scx_prepare_all_task(void)
++{
++	int cpu;
++	struct task_struct *g, *p;
++	int level = 0;
++	struct rq *rq;
++	LIST_HEAD(dead);
++
++	read_lock(&tasklist_lock);
++
++	for_each_possible_cpu(cpu) {
++		if (level == 0)
++			raw_spin_lock(&cpu_rq(cpu)->__lock);
++		else
++			raw_spin_lock_nested(&cpu_rq(cpu)->__lock, level);
++		level++;
++	}
++
++	init_dsq_at_boot();
++
++	for_each_possible_cpu(cpu) {
++		rq = cpu_rq(cpu);
++		scx_init_task_struct(rq->idle);
++	}
++
++	scx_search_unhashed_task_queued(&dead);
++
++	for_each_process_thread(g, p) {
++		scx_requeue_migrating_task(p);
++		scx_init_task_struct(p);
++	}
++
++	list_for_each_entry(p, &dead, thread_group) {
++		scx_requeue_migrating_task(p);
++		scx_init_task_struct(p);
++		list_del_rcu(&p->thread_group);
++	}
++
++	for_each_possible_cpu(cpu) {
++		raw_spin_unlock(&cpu_rq(cpu)->__lock);
++	}
++	read_unlock(&tasklist_lock);
++}
++
++int prepare_for_ext_scheduler_switch(void *data)
++{
++	struct task_struct *p, *g;
++	int level, cpu, count0 = 0, count1 = 0;
++	int enable = hmbird_enable;
++	unsigned long irqflags;
++
++	read_lock(&tasklist_lock);
++	/* step1: switch all rt sched class to fair sched class. */
++	for_each_process_thread(g, p) {
++		/* warning : When switching scheduling classes, adjusting the pi-chain will enable irq. */
++		local_save_flags(irqflags);
++		move_to_same_sched_class(p, enable);
++		local_irq_restore(irqflags);
++		count0++;
++	}
++
++	debug_printk("finish move_to_same_sched_class, enable=%d\n", hmbird_enable);
++	level = 0;
++	for_each_possible_cpu(cpu) {
++		if (level == 0)
++			raw_spin_lock(&cpu_rq(cpu)->__lock);
++		else
++			raw_spin_lock_nested(&cpu_rq(cpu)->__lock, level);
++
++		update_rq_clock(cpu_rq(cpu));
++		level++;
++	}
++
++	for_each_process_thread(g, p) {
++		prepare_cfs_tasks(p, enable);
++		count1++;
++	}
++
++	debug_printk("finish prepare_cfs_tasks, enable=%d\n", hmbird_enable);
++
++	for_each_possible_cpu(cpu) {
++		raw_spin_unlock(&cpu_rq(cpu)->__lock);
++	}
++	read_unlock(&tasklist_lock);
++
++	if (count0 != count1)
++		pr_err("count0(%d) is not the same as count1(%d)\n", count0, count1);
++
++	return 0;
++}
++
++static void scx_sched_init_rq(struct rq *rq, bool reinit)
++{
++	int i;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++
++	srq->local_dsq_s.nr_period_tasks = 0;
++	srq->local_dsq_s.nr_tasks = 0;
++	srq->local_dsq_s.cumulative_runnable_avg_scaled = 0;
++	srq->prev_window_size = scx_sched_ravg_window;
++	srq->task_exec_scale = 1024;
++
++	if (!reinit) {
++		srq->window_start = 0;
++	} else {
++		if (unlikely(!tick_sched_clock)) {
++			SCX_BUG("tick_sched_clock should not be 0 while reinit!\n");
++		}
++		srq->window_start = tick_sched_clock;
++	}
++
++	for (i = 0; i < NUM_ISO_CLUSTERS; i++) {
++		if (cpumask_test_cpu(cpu_of(rq), iso_masks.cluster[i])) {
++			srq->iso_idx = i;
++			break;
++		}
++	}
++	if (i == NUM_ISO_CLUSTERS)
++		srq->iso_idx = -1;
++}
++
++static int scx_reinit_stop_handler(void *data)
++{
++	int cpu;
++	static bool reinit = false;
++	unsigned long flags;
++
++	if (unlikely(atomic_read(&scx_enter_count) != 0 || scx_stats_trace))
++		SCX_BUG("scx_reinit while scx_enter_count=%d, scx_stats_trace=%d\n",
++							atomic_read(&scx_enter_count), scx_stats_trace);
++	init_cgroup();
++	hmbird_enable = 1;
++	scx_prepare_all_task();
++	scx_sched_gki_init();
++	scx_fixup_window_dep();
++
++	for_each_possible_cpu(cpu) {
++		struct rq *rq = cpu_rq(cpu);
++
++		raw_spin_lock_irqsave(&rq->__lock, flags);
++		scx_sched_init_rq(rq, reinit);
++		raw_spin_unlock_irqrestore(&rq->__lock, flags);
++	}
++
++	if (!reinit) {
++		reinit = true;
++	} else {
++		if (unlikely(!tick_sched_clock)) {
++			SCX_BUG("tick_sched_clock should not be 0 while reinit!\n");
++		}
++		atomic64_set(&scx_run_rollover_lastq_ws, tick_sched_clock);
++	}
++
++	scx_stats_trace = true;
++	return 0;
++}
++
++static void scx_reinit(void)
++{
++	stop_machine(scx_reinit_stop_handler, NULL, NULL);
++}
++
++enum scx_state {
++	SCX_SWITCH = 0,
++	SCX_ENABLE = 1,
++	WALT_ENABLE = 2,
++};
++
++void scx_state_systrace_c(int scx_state)
++{
++	char buf[256];
++	snprintf(buf, sizeof(buf), "C|9999|scx_state|%d\n", scx_state);
++	scx_tracing_mark_write(buf);
++}
++
++void scx_enable(void)
++{
++	scx_state_systrace_c(SCX_SWITCH);
++
++	if (READ_ONCE(scx_stats_trace))
++		return;
++
++	while (atomic_read(&scx_enter_count))
++		cpu_relax();
++
++	scx_reinit();
++
++	while(!READ_ONCE(scx_stats_trace))
++		cpu_relax();
++	scx_state_systrace_c(SCX_ENABLE);
++}
++
++void scx_disable(void)
++{
++	scx_state_systrace_c(SCX_SWITCH);
++	if(!cmpxchg(&scx_stats_trace, true, false))
++		pr_warn("scx has already been disabled!\n");
++	hmbird_enable = 0;
++	while(atomic_read(&scx_enter_count))
++		cpu_relax();
++
++	scx_state_systrace_c(WALT_ENABLE);
++}
++
++static void scx_resume(void)
++{
++	scx_clock_suspended = false;
++}
++
++static int scx_suspend(void)
++{
++	scx_clock_last = sched_clock();
++	scx_clock_suspended = true;
++	return 0;
++}
++
++static struct syscore_ops scx_syscore_ops = {
++	.resume		= scx_resume,
++	.suspend	= scx_suspend
++};
++
++static DEFINE_MUTEX(switch_mutex);
++void clear_cpu_from_all_masks(int cpu)
++{
++	cpumask_clear_cpu(cpu, iso_masks.partial);
++	cpumask_clear_cpu(cpu, iso_masks.exclusive);
++	cpumask_clear_cpu(cpu, iso_masks.little);
++	cpumask_clear_cpu(cpu, iso_masks.big);
++}
++
++int parse_and_set_cpus(const char *input, struct cpumask *mask)
++{
++	char *token;
++	char *input_copy;
++	char *cur;
++	int start, end, cpu;
++	if (!input)
++		return -EINVAL;
++
++	input_copy = kstrdup(input, GFP_KERNEL);
++	if (!input_copy)
++		return -ENOMEM;
++
++	cur = input_copy;
++
++	while ((token = strsep(&cur, ",")) != NULL) {
++		if (sscanf(token, "%d-%d", &start, &end) == 2) {
++			for (cpu = start; cpu <= end; cpu++) {
++				clear_cpu_from_all_masks(cpu);
++				cpumask_set_cpu(cpu, mask);
++			}
++		} else if (sscanf(token, "%d", &cpu) == 1) {
++			clear_cpu_from_all_masks(cpu);
++			cpumask_set_cpu(cpu, mask);
++		} else {
++			kfree(input_copy);
++			return -EINVAL;
++		}
++	}
++
++	kfree(input_copy);
++	return 0;
++}
++
++static ssize_t cpumask_to_str(struct cpumask *mask, char *buf, size_t buf_size)
++{
++	int cpu, len = 0;
++	bool first = true;
++
++	for_each_cpu(cpu, mask) {
++		if (!first)
++			len += scnprintf(buf + len, buf_size - len, ",");
++		len += scnprintf(buf + len, buf_size - len, "%d", cpu);
++		first = false;
++	}
++
++	return len;
++}
++static ssize_t print_cpu_distribution(char *buf, size_t buf_size)
++{
++	int len = 0, i;
++	for (i = 0; i < NUM_ISO_CLUSTERS; i++) {
++		len += scnprintf(buf + len, buf_size - len, "[");
++		len += cpumask_to_str(iso_masks.cluster[i], buf + len, buf_size - len);
++		len += scnprintf(buf + len, buf_size - len, "]\n");
++	}
++	return len;
++}
++
++static int iso_mask_proc_handler(struct ctl_table *table, int write,
++                        void __user *buffer, size_t *lenp, loff_t *ppos)
++{
++	char input[128] = { };
++	struct cpumask *mask;
++	int ret;
++	struct ctl_table tmp = {
++		.data	= &input,
++		.maxlen	= sizeof(input),
++	};
++	mask = (struct cpumask *)table->data;
++	if (write) {
++		ret = proc_dostring(&tmp, write, buffer, lenp, ppos);
++		if (ret) {
++			return -EFAULT;
++		}
++		mutex_lock(&switch_mutex);
++		if (scx_stats_trace) {
++			pr_err("iso_mask can not be set while enable!\n");
++			mutex_unlock(&switch_mutex);
++			return -EINVAL;
++		}
++		ret = parse_and_set_cpus(input, mask);
++		mutex_unlock(&switch_mutex);
++		return ret ? ret : *lenp;
++	} else {
++		ret = print_cpu_distribution(input, sizeof(input));
++		if (ret < 0)
++			return ret;
++		ret = proc_dostring(&tmp, write, buffer, lenp, ppos);
++		return ret;
++	}
++}
++
++void update_scx_cfg_scene(struct scene_cfg *cfg)
++{
++	parse_and_set_cpus(cfg->iso_little, iso_masks.little);
++	parse_and_set_cpus(cfg->iso_big, iso_masks.big);
++	parse_and_set_cpus(cfg->iso_partial, iso_masks.partial);
++	parse_and_set_cpus(cfg->iso_exclusive, iso_masks.exclusive);
++
++	if (!frame_per_sec)
++		sched_ravg_window_change(cfg->frame_per_sec);
++
++	sysctl_shadow_tick_enable = cfg->shadow_tick_enable;
++	scx_idle_ctl = cfg->idle_ctl;
++	scx_exclusive_sync_ctl = cfg->exclusive_sync_ctl;
++}
++
++static int scx_proc_scx_stats_trace_enable(struct ctl_table *table,
++				int write, void __user *buffer, size_t *lenp,
++				loff_t *ppos)
++{
++	int ret = -EPERM;
++	int val;
++
++	struct ctl_table tmp = {
++		.data	= &val,
++		.maxlen	= sizeof(val),
++		.mode	= table->mode,
++	};
++
++	mutex_lock(&switch_mutex);
++
++	val = scx_stats_trace;
++	ret = proc_dointvec(&tmp, write, buffer, lenp, ppos);
++	if (ret || !write || (!!val == scx_stats_trace))
++		goto unlock;
++
++	if(val) {
++		scene_in = val;
++		if (scene_in > DEFAULT && scene_in < USER_SET)
++			update_scx_cfg_scene(&scx_cfg[scene_in]);
++		scx_enable();
++	} else
++		scx_disable();
++
++unlock:
++	mutex_unlock(&switch_mutex);
++	return ret;
++}
++
++static int scx_proc_sched_ravg_window_update(struct ctl_table *table,
++				int write, void __user *buffer, size_t *lenp,
++				loff_t *ppos)
++{
++	int ret = -EPERM;
++	int val;
++	static DEFINE_MUTEX(mutex);
++
++	struct ctl_table tmp = {
++		.data	= &val,
++		.maxlen	= sizeof(val),
++		.mode	= table->mode,
++	};
++
++	mutex_lock(&mutex);
++
++	val = frame_per_sec;
++	ret = proc_dointvec(&tmp, write, buffer, lenp, ppos);
++	if (ret || !write || (val == frame_per_sec))
++		goto unlock;
++	frame_per_sec = val;
++
++	sched_ravg_window_change(frame_per_sec);
++
++unlock:
++	mutex_unlock(&mutex);
++	return ret;
++}
++
++static int scx_proc_partial_ratio_ctl(struct ctl_table *table,
++				int write, void __user *buffer, size_t *lenp,
++				loff_t *ppos)
++{
++	int ret = -EPERM, cpu;
++	int val;
++	static DEFINE_MUTEX(mutex);
++	int *ratio = (int *)table->data;
++	bool high = ((ratio == &cpuctrl_high_ratio) || (ratio == &cpuctrl_high_ratio_scaled)) ? true : false;
++	bool scaled = ((ratio == &cpuctrl_high_ratio_scaled) || (ratio == &cpuctrl_low_ratio_scaled)) ? true : false;
++
++	struct ctl_table tmp = {
++		.data	= &val,
++		.maxlen	= sizeof(val),
++		.mode	= table->mode,
++	};
++
++	mutex_lock(&mutex);
++
++	val = *ratio;
++	ret = proc_dointvec(&tmp, write, buffer, lenp, ppos);
++	if (ret || !write || (val == *ratio))
++		goto unlock;
++	*ratio = val;
++	if (scaled) {
++		for_each_possible_cpu(cpu) {
++			if (high)
++				per_cpu(cpuctrl_high_util_scaled, cpu) = arch_scale_cpu_capacity(cpu) * cpuctrl_high_ratio_scaled / 100;
++			else
++				per_cpu(cpuctrl_low_util_scaled, cpu) = arch_scale_cpu_capacity(cpu) * cpuctrl_low_ratio_scaled / 100;
++		}
++	}
++unlock:
++	mutex_unlock(&mutex);
++	return ret;
++}
++
++struct ctl_table scx_table[] = {
++	{
++		.procname	= "scx_enable",
++		.data		= &scx_stats_trace,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_scx_stats_trace_enable,
++	},
++	{
++		.procname	= "scx_shadow_tick_enable",
++		.data		= &sysctl_shadow_tick_enable,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "sched_ravg_window_frame_per_sec",
++		.data		= &frame_per_sec,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_sched_ravg_window_update,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_INT_MAX,
++	},
++	{
++		.procname	= "busy_pct_high_ratio",
++		.data		= &cpuctrl_high_ratio,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_partial_ratio_ctl,
++	},
++	{
++		.procname	= "busy_pct_low_ratio",
++		.data		= &cpuctrl_low_ratio,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_partial_ratio_ctl,
++	},
++	{
++		.procname	= "busy_util_high_ratio",
++		.data		= &cpuctrl_high_ratio_scaled,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_partial_ratio_ctl,
++	},
++	{
++		.procname	= "busy_util_low_ratio",
++		.data		= &cpuctrl_low_ratio_scaled,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= scx_proc_partial_ratio_ctl,
++	},
++	{
++		.procname	= "partial_level",
++		.data		= &partial_enable,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++	},
++	{
++		.procname   = "cpus_partial",
++		.data       = (void *)iso_masks.partial,
++		.maxlen     = 64,
++		.mode       = 0644,
++		.proc_handler = iso_mask_proc_handler,
++	},
++	{
++		.procname   = "cpus_exclusive",
++		.data       = (void *)iso_masks.exclusive,
++		.maxlen     = 64,
++		.mode       = 0644,
++		.proc_handler = iso_mask_proc_handler,
++	},
++	{
++		.procname   = "cpus_little",
++		.data       = (void *)iso_masks.little,
++		.maxlen     = 64,
++		.mode       = 0644,
++		.proc_handler = iso_mask_proc_handler,
++	},
++	{
++		.procname   = "cpus_big",
++		.data       = (void *)iso_masks.big,
++		.maxlen     = 64,
++		.mode       = 0644,
++		.proc_handler = iso_mask_proc_handler,
++	},
++	{
++		.procname	= "scx_idle_ctl_enable",
++		.data		= &scx_idle_ctl,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "scx_tick_resched_enable",
++		.data		= &scx_tick_ctl,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "scx_newidle_balance_ctl",
++		.data		= &scx_newidle_balance_ctl,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "scx_exclusive_sync_enable",
++		.data		= &scx_exclusive_sync_ctl,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "rt_switch",
++		.data		= &sysctl_rt_switch,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "yield_opt",
++		.data		= &sysctl_yield_opt_enable,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{
++		.procname	= "gov_avg_policy_enable",
++		.data		= &sysctl_gov_avg_policy,
++		.maxlen		= sizeof(unsigned int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ZERO,
++		.extra2		= SYSCTL_ONE,
++	},
++	{ },
++};
++
++static int init_isolate_cpus(void)
++{
++	if (!alloc_cpumask_var(&iso_masks.partial, GFP_KERNEL))
++		goto err;
++	if (!alloc_cpumask_var(&iso_masks.exclusive, GFP_KERNEL))
++		goto err_free_partial;
++	if (!alloc_cpumask_var(&iso_masks.big, GFP_KERNEL))
++		goto err_free_exclusive;
++	if (!alloc_cpumask_var(&iso_masks.little, GFP_KERNEL))
++		goto err_free_big;
++	return 0;
++
++err_free_big:
++	free_cpumask_var(iso_masks.big);
++err_free_exclusive:
++	free_cpumask_var(iso_masks.exclusive);
++err_free_partial:
++	free_cpumask_var(iso_masks.partial);
++err:
++	return -ENOMEM;
++}
++
++int __init scx_init(void)
++{
++	struct ctl_table_header *hdr;
++	int ret = 0;
++
++	lunar_task_struct_ext_init();
++	ret = init_isolate_cpus();
++	if (ret < 0) {
++		pr_err("init_isolate_cpus fail!\n");
++		return ret;
++	}
++	hdr = register_sysctl("oplus_sched_ext", scx_table);
++	register_syscore_ops(&scx_syscore_ops);
++	init_dsq_at_boot();
++	scx_sched_gki_init_early();
++	scx_shadow_tick_init();
++	scx_cpufreq_init();
++	update_scx_cfg_scene(&scx_cfg[DEFAULT]);
++	kmemleak_not_leak(hdr);
++	return ret;
++}
++
++void __exit scx_exit(void)
++{
++	lunar_task_struct_ext_exit();
++}
++
++module_param_named(scx_debug, dump_info, uint, 0660);
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.h b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.h
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_main.h
+@@ -0,0 +1,475 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#ifndef _SCX_SE_H_
++#define _SCX_SE_H_
++
++#include <linux/list.h>
++#include <linux/types.h>
++#include <linux/atomic.h>
++#include <linux/cgroup-defs.h>
++#include <linux/kmemleak.h>
++#include <trace/hooks/sched.h>
++#include <../kernel/sched/walt/walt.h>
++#include "sched_ext.h"
++
++#define MAX_BPF_DSQS (10)
++#define MIN_CGROUP_DL_IDX (5)      /* 8ms */
++#define DEFAULT_CGROUP_DL_IDX (8)  /* 64ms */
++#define NON_PERIOD_START	(5)
++#define NON_PERIOD_END		(MAX_BPF_DSQS)
++#define DSQ_BITMASK		((1U << MAX_BPF_DSQS) - 1)
++#define PERIOD_BITMASK	((1U << NON_PERIOD_START) - 1)
++#define NON_PERIOD_BITMASK	(DSQ_BITMASK & (~PERIOD_BITMASK))
++extern u32 SCX_BPF_DSQS_DEADLINE[MAX_BPF_DSQS];
++#define NUMS_CGROUP_KNIDS		(256)
++extern u8 cgroup_ids_tab[NUMS_CGROUP_KNIDS];
++/*sysctl*/
++extern unsigned int dump_info;
++
++#define SCX_DEBUG_FTRACE		(1 << 0)
++#define SCX_DEBUG_SYSTRACE		(1 << 1)
++#define SCX_DEBUG_PRINTK		(1 << 2)
++#define SCX_DEBUG_PANIC			(1 << 3)
++
++#define scx_trace_printk(fmt, ...)	\
++do {										\
++		trace_printk("scx_sched_ext :"fmt, ##__VA_ARGS__);	\
++} while (0)
++
++#define debug_trace_printk(fmt, ...)	\
++do {										\
++	if (dump_info & SCX_DEBUG_FTRACE)			\
++		trace_printk("scx_sched_ext :"fmt, ##__VA_ARGS__);	\
++} while (0)
++
++#define debug_printk(fmt, ...)	\
++{							\
++	if (dump_info & SCX_DEBUG_PRINTK)	\
++		printk_deferred("scx_sched_ext[%s]: "fmt, __func__, ##__VA_ARGS__); \
++}
++
++#define scx_assert_rq_lock(rq)	\
++do {			\
++	if (unlikely(!raw_spin_is_locked(&rq->__lock))) { \
++		printk_deferred("on CPU%d: %s task %s(%d) unlocked access for cpu=%d stack[%pS <== %pS <== %pS]\n", \
++			raw_smp_processor_id(), __func__, current->comm, current->pid, rq->cpu,             \
++			(void *)CALLER_ADDR0, (void *)CALLER_ADDR1, (void *)CALLER_ADDR2);          \
++		BUG_ON(-1);					\
++	}	\
++} while (0)
++
++#define scx_assert_spin_held(lock)	\
++do {			\
++	if (unlikely(!raw_spin_is_locked(lock))) { \
++		printk_deferred("on CPU%d: %s task %s(%d) unlocked access for lock=%s stack[%pS <== %pS <== %pS]\n", \
++			raw_smp_processor_id(), __func__, current->comm, current->pid, #lock,             \
++			(void *)CALLER_ADDR0, (void *)CALLER_ADDR1, (void *)CALLER_ADDR2);          \
++		BUG_ON(-1);					\
++	}	\
++} while (0)
++
++#define SCX_BUG(fmt, ...)		\
++do {										\
++	printk_deferred("scx_sched_ext[%s]:"fmt, __func__, ##__VA_ARGS__);	\
++	if (dump_info & SCX_DEBUG_PANIC)			\
++		BUG_ON(-1);								\
++} while (0)
++
++#define SCHED_PRINT(arg)	printk_deferred("%s=%llu", #arg, (unsigned long long)arg)
++void scx_task_dump(struct task_struct *p);
++
++#define REGISTER_TRACE(vendor_hook, handler, data, err)	\
++do {								\
++	ret = register_trace_##vendor_hook(handler, data);				\
++	if (ret) {						\
++		pr_err("scx_sched_ext:failed to register_trace_"#vendor_hook", ret=%d\n", ret);	\
++		goto err;					\
++	}							\
++} while (0)
++
++#define UNREGISTER_TRACE(vendor_hook, handler, data)	\
++do {								\
++	unregister_trace_##vendor_hook(handler, data);				\
++} while (0)
++
++#define DIV64_U64_ROUNDUP(X, Y) div64_u64((X) + (Y - 1), Y)
++
++#ifdef CONFIG_FAIR_GROUP_SCHED
++/* Walk up scheduling entities hierarchy */
++#define for_each_sched_entity(se) \
++		for (; se; se = se->parent)
++#else
++#define for_each_sched_entity(se) \
++		for (; se; se = NULL)
++#endif
++
++enum scene {
++	DEFAULT = 0,
++	SGAME = 1,
++	USER_SET = 2,
++	SCENE_MAX
++};
++extern unsigned int scene_in;
++
++struct scene_cfg {
++	char	iso_little[10];
++	char	iso_big[10];
++	char	iso_partial[10];
++	char	iso_exclusive[10];
++	int	frame_per_sec;
++	bool 	shadow_tick_enable;
++	bool 	idle_ctl;
++	bool	exclusive_sync_ctl;
++};
++
++struct scx_dsq_stats {
++	u64	cumulative_runnable_avg_scaled;
++	int	nr_period_tasks;
++	int	nr_tasks;
++};
++
++struct scx_sched_rq_stats {
++	u64			window_start;
++	u64			latest_clock;
++	u32			prev_window_size;
++	u64			task_exec_scale;
++	u64			prev_runnable_sum;
++	u64			curr_runnable_sum;
++	int			iso_idx;
++	struct scx_dsq_stats	local_dsq_s;
++};
++
++/*
++ * Dispatch queue (dsq) is a simple FIFO which is used to buffer between the
++ * scheduler core and the BPF scheduler. See the documentation for more details.
++ */
++struct scx_dispatch_q {
++	raw_spinlock_t		lock;
++	struct list_head	fifo;	/* processed in dispatching order */
++	struct rb_root_cached	priq;	/* processed in p->scx.dsq_vtime order */
++	u32			nr;
++	u64			id;
++	u32			idx;
++	int			cpu;
++	struct rhash_head	hash_node;
++	struct llist_node	free_node;
++	struct rcu_head		rcu;
++	u64                     last_consume_at;
++	bool                    is_timeout;
++};
++
++
++/* scx_entity.flags */
++enum scx_ent_flags {
++	SCX_TASK_QUEUED		= 1 << 0, /* on ext runqueue */
++	SCX_TASK_BAL_KEEP	= 1 << 1, /* balance decided to keep current */
++	SCX_TASK_ENQ_LOCAL	= 1 << 2, /* used by scx_select_cpu_dfl() to set SCX_ENQ_LOCAL */
++
++	SCX_TASK_OPS_PREPPED	= 1 << 8, /* prepared for BPF scheduler enable */
++	SCX_TASK_OPS_ENABLED	= 1 << 9, /* task has BPF scheduler enabled */
++
++	SCX_TASK_WATCHDOG_RESET = 1 << 16, /* task watchdog counter should be reset */
++	SCX_TASK_DEQD_FOR_SLEEP	= 1 << 17, /* last dequeue was for SLEEP */
++
++	SCX_TASK_CURSOR		= 1 << 31, /* iteration cursor, not a task */
++};
++
++/* scx_entity.dsq_flags */
++enum scx_ent_dsq_flags {
++	SCX_TASK_DSQ_ON_PRIQ	= 1 << 0, /* task is queued on the priority queue of a dsq */
++};
++
++enum scx_enq_flags {
++	/* expose select ENQUEUE_* flags as enums */
++	SCX_ENQ_WAKEUP		= ENQUEUE_WAKEUP,
++	SCX_ENQ_HEAD		= ENQUEUE_HEAD,
++
++	/* high 32bits are SCX specific */
++
++	/*
++	 * Set the following to trigger preemption when calling
++	 * scx_bpf_dispatch() with a local dsq as the target. The slice of the
++	 * current task is cleared to zero and the CPU is kicked into the
++	 * scheduling path. Implies %SCX_ENQ_HEAD.
++	 */
++	SCX_ENQ_PREEMPT		= 1LLU << 32,
++
++	/*
++	 * The task being enqueued was previously enqueued on the current CPU's
++	 * %SCX_DSQ_LOCAL, but was removed from it in a call to the
++	 * bpf_scx_reenqueue_local() kfunc. If bpf_scx_reenqueue_local() was
++	 * invoked in a ->cpu_release() callback, and the task is again
++	 * dispatched back to %SCX_LOCAL_DSQ by this current ->enqueue(), the
++	 * task will not be scheduled on the CPU until at least the next invocation
++	 * of the ->cpu_acquire() callback.
++	 */
++	SCX_ENQ_REENQ		= 1LLU << 40,
++
++	/*
++	 * The task being enqueued is the only task available for the cpu. By
++	 * default, ext core keeps executing such tasks but when
++	 * %SCX_OPS_ENQ_LAST is specified, they're ops.enqueue()'d with
++	 * %SCX_ENQ_LAST and %SCX_ENQ_LOCAL flags set.
++	 *
++	 * If the BPF scheduler wants to continue executing the task,
++	 * ops.enqueue() should dispatch the task to %SCX_DSQ_LOCAL immediately.
++	 * If the task gets queued on a different dsq or the BPF side, the BPF
++	 * scheduler is responsible for triggering a follow-up scheduling event.
++	 * Otherwise, Execution may stall.
++	 */
++	SCX_ENQ_LAST		= 1LLU << 41,
++
++	/*
++	 * A hint indicating that it's advisable to enqueue the task on the
++	 * local dsq of the currently selected CPU. Currently used by
++	 * select_cpu_dfl() and together with %SCX_ENQ_LAST.
++	 */
++	SCX_ENQ_LOCAL		= 1LLU << 42,
++
++	/* high 8 bits are internal */
++	__SCX_ENQ_INTERNAL_MASK	= 0xffLLU << 56,
++
++	SCX_ENQ_CLEAR_OPSS	= 1LLU << 56,
++	SCX_ENQ_DSQ_PRIQ	= 1LLU << 57,
++};
++
++enum scx_deq_flags {
++	/* expose select DEQUEUE_* flags as enums */
++	SCX_DEQ_SLEEP		= DEQUEUE_SLEEP,
++
++	/* high 32bits are SCX specific */
++
++	/*
++	 * The generic core-sched layer decided to execute the task even though
++	 * it hasn't been dispatched yet. Dequeue from the BPF side.
++	 */
++	SCX_DEQ_CORE_SCHED_EXEC	= 1LLU << 32,
++};
++
++#define NUM_ISO_CLUSTERS	4
++struct scx_iso_masks {
++	union {
++		struct {
++			cpumask_var_t	little;
++			cpumask_var_t	big;
++			cpumask_var_t	partial;
++			cpumask_var_t	exclusive;
++		};
++		cpumask_var_t	cluster[NUM_ISO_CLUSTERS];
++	};
++};
++
++#define MAX_YIELD_SLEEP		(2000ULL)
++#define MIN_YIELD_SLEEP		(200ULL)
++#define	DEFAULT_YIELD_SLEEP_TH	(10)
++
++struct sched_yield_state {
++	raw_spinlock_t	lock;
++	unsigned long	cnt;
++	unsigned long	usleep;
++	int usleep_times;
++};
++
++DECLARE_PER_CPU(struct scx_dispatch_q[MAX_BPF_DSQS], gdsqs);
++DECLARE_PER_CPU(unsigned long, dsqs_map);
++DECLARE_PER_CPU(struct sched_yield_state, ystate);
++extern struct scx_iso_masks iso_masks;
++DECLARE_PER_CPU(struct scx_sched_rq_stats, scx_sched_rq_stats);
++static inline cpumask_t *scx_cpu_iso_cluster(int cpu)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu);
++	if (srq->iso_idx < 0 || srq->iso_idx >= NUM_ISO_CLUSTERS)
++		return NULL;
++
++	return iso_masks.cluster[srq->iso_idx];
++}
++
++int parse_and_set_cpus(const char *input, struct cpumask *mask);
++void update_scx_cfg_scene(struct scene_cfg *cfg);
++extern struct scene_cfg scx_cfg[SCENE_MAX];
++
++static inline bool scx_cpu_partial(int cpu)
++{
++	return cpumask_test_cpu(cpu, iso_masks.partial);
++}
++
++static inline bool scx_cpu_exclusive(int cpu)
++{
++	return cpumask_test_cpu(cpu, iso_masks.exclusive);
++}
++
++static inline bool scx_cpu_little(int cpu)
++{
++	return cpumask_test_cpu(cpu, iso_masks.little);
++}
++
++static inline bool scx_cpu_big(int cpu)
++{
++	return cpumask_test_cpu(cpu, iso_masks.big);
++}
++
++static inline struct scx_entity *get_oplus_ext_entity(struct task_struct *p)
++{
++	struct lunar_task_struct *lts = get_lunar_task_struct(p);
++	if (!lts) {
++		WARN_ONCE(1, "scx_sched_ext:get_oplus_ext_entity NULL!");
++		return NULL;
++	}
++	return &lts->scx;
++}
++
++extern atomic_t scx_enter_count;
++extern unsigned int scx_stats_trace;
++extern void scx_reinit_queue_work(void);
++#define SCX_ENABLE_PENDING			(-1)
++
++static inline bool scx_enabled_enter(void)
++{
++	bool ret = scx_stats_trace;
++	if (ret) {
++		atomic_inc(&scx_enter_count);
++		if (unlikely(!scx_stats_trace)) {
++			atomic_dec(&scx_enter_count);
++			return !ret;
++		}
++	}
++	return ret;
++}
++
++static inline void scx_enabled_exit(void)
++{
++	atomic_dec(&scx_enter_count);
++}
++
++extern bool scx_clock_suspended;
++extern u64 scx_clock_last;
++static inline u64 scx_sched_clock(void)
++{
++	if (unlikely(scx_clock_suspended))
++		return scx_clock_last;
++	return sched_clock();
++}
++
++static inline u64 scx_rq_clock(struct rq *rq)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++
++	if (unlikely(scx_clock_suspended))
++		return scx_clock_last;
++
++	scx_assert_rq_lock(rq);
++
++	if (!(rq->clock_update_flags & RQCF_UPDATED))
++		update_rq_clock(rq);
++
++	return max(rq_clock(rq), srq->latest_clock);
++}
++
++extern noinline int scx_tracing_mark_write(const char *buf);
++
++extern u16 balance_small_task_th;
++
++/*scx_util_trace*/
++extern int scx_sched_ravg_window;
++extern int new_scx_sched_ravg_window;
++extern spinlock_t new_sched_ravg_window_lock;
++extern unsigned int scx_scale_demand_divisor;
++extern u64 tick_sched_clock;
++extern atomic64_t scx_run_rollover_lastq_ws;
++extern u32 balance_small_task_th_runtime;
++extern u16 scx_init_load_windows_scaled;
++extern u32 scx_init_load_windows;
++extern u64 scale_exec_time(u64 delta, struct rq *rq);
++
++/*util = runtime * 1024 / window_size */
++static inline u64 scx_scale_time_to_util(u64 d)
++{
++	do_div(d, scx_scale_demand_divisor);
++	return d;
++}
++
++static inline u32 scx_scale_util_to_time(u16 util)
++{
++	return util * scx_scale_demand_divisor;
++}
++
++/*called while scx_sched_ravg_window changed or init*/
++static inline void scx_fixup_window_dep(void)
++{
++	scx_scale_demand_divisor = scx_sched_ravg_window >> SCHED_CAPACITY_SHIFT;
++	balance_small_task_th_runtime = scx_scale_util_to_time(balance_small_task_th);
++	scx_init_load_windows_scaled = balance_small_task_th + 1;
++	scx_init_load_windows = balance_small_task_th_runtime + 1;
++}
++
++u16 scx_cpu_util(int cpu);
++static inline unsigned long scx_cpu_load(int cpu)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu);
++	struct scx_entity *curr_scx = NULL;
++	u64 curr_load;
++	if (cpu_rq(cpu)->curr) {
++		curr_scx = get_oplus_ext_entity(cpu_rq(cpu)->curr);
++	}
++
++	curr_load = curr_scx ? curr_scx->sts.demand_scaled : 0;
++
++	return srq->local_dsq_s.cumulative_runnable_avg_scaled + curr_load;
++}
++
++static inline int nr_period_tasks(int cpu)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu);
++	struct scx_entity *curr_scx = NULL;
++
++	if (cpu_rq(cpu)->curr) {
++		curr_scx = get_oplus_ext_entity(cpu_rq(cpu)->curr);
++	}
++
++	return (curr_scx && (curr_scx->gdsq_idx < NON_PERIOD_START)) ?
++				(srq->local_dsq_s.nr_period_tasks + 1) : srq->local_dsq_s.nr_period_tasks;
++}
++
++/*util_track*/
++void scx_update_task_ravg(struct scx_entity *scx, struct task_struct *p, struct rq *rq, int event, u64 wallclock);
++void sched_ravg_window_change(int frame_per_sec);
++void scx_trace_dispatch_enqueue(struct scx_entity *scx, struct task_struct *p, struct rq *rq);
++void scx_trace_dispatch_dequeue(struct scx_entity *scx, struct task_struct *p, struct rq *rq);
++
++/*scx_sched_gki*/
++extern int partial_enable;
++extern unsigned int scx_idle_ctl;
++extern unsigned int scx_tick_ctl;
++extern unsigned int scx_newidle_balance_ctl;
++extern unsigned int scx_exclusive_sync_ctl;
++extern unsigned int sysctl_yield_opt_enable;
++extern unsigned int sysctl_gov_avg_policy;
++extern int cpuctrl_high_ratio;
++extern int cpuctrl_low_ratio;
++extern int cpuctrl_high_ratio_scaled;
++extern int cpuctrl_low_ratio_scaled;
++DECLARE_PER_CPU(int, cpuctrl_high_util_scaled);
++DECLARE_PER_CPU(int, cpuctrl_low_util_scaled);
++
++int scx_sched_gki_init_early(void);
++void scx_sched_gki_init(void);
++void scx_tick_entry(struct rq *rq);
++void scx_scheduler_tick(void);
++void partial_load_ctrl(struct rq *rq);
++int find_idx_from_task(struct task_struct *p);
++void scx_smp_call_newidle_balance(int cpu);
++void partial_backup_systrace_c(int partial_enable);
++
++/*cpufreq_gov*/
++int scx_cpufreq_init(void);
++void run_scx_irq_work_rollover(void);
++void scx_gov_update_cpufreq(struct cpufreq_policy *policy, u64 prev_runnable_sum);
++
++/*shadow_tick*/
++extern unsigned int sysctl_shadow_tick_enable;
++int scx_shadow_tick_init(void);
++void start_shadow_tick_timer(void);
++
++#endif /* _SCX_SE_H_ */
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_sched_gki.c b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_sched_gki.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_sched_gki.c
+@@ -0,0 +1,1320 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++
++#include <linux/delay.h>
++#include "scx_main.h"
++
++#define CREATE_TRACE_POINTS
++#include "trace_sched_ext.h"
++#include "scx_hooks.h"
++
++#include <linux/tracepoint.h>
++
++#define RT_PRIO_TO_IDX(prio)		(prio >> 5)
++
++/* 10 * scx_sched_ravg_window / 1024 ~= 80us */
++u16 balance_small_task_th = 10;
++u32 balance_small_task_th_runtime;
++u16 scx_init_load_windows_scaled;
++u32 scx_init_load_windows;
++int cpuctrl_high_ratio = 90;
++int cpuctrl_low_ratio = 70;
++int cpuctrl_high_ratio_scaled = 70;
++int cpuctrl_low_ratio_scaled = 40;
++DEFINE_PER_CPU(int, cpuctrl_high_util_scaled);
++DEFINE_PER_CPU(int, cpuctrl_low_util_scaled);
++
++
++static cpumask_t scx_cpumask_full = CPU_MASK_ALL;
++
++unsigned int scx_idle_ctl = true;
++unsigned int scx_tick_ctl = true;
++unsigned int scx_newidle_balance_ctl = true;
++unsigned int scx_exclusive_sync_ctl = false;
++unsigned int sysctl_shadow_tick_enable = true;
++unsigned int sysctl_yield_opt_enable = true;
++
++#define PARTIAL_ENABLE_INIT		50
++int partial_enable;
++
++void partial_backup_systrace_c(int partial_enable)
++{
++	char buf[256];
++	snprintf(buf, sizeof(buf), "C|9999|partial_enable|%d\n", partial_enable);
++	scx_tracing_mark_write(buf);
++}
++
++static DEFINE_PER_CPU(int, prev_tick_gran_state);
++void tick_gran_state_systrace_c(unsigned int cpu, int tick_gran_state)
++{
++	if (per_cpu(prev_tick_gran_state, cpu) != tick_gran_state) {
++		char buf[256];
++
++		snprintf(buf, sizeof(buf), "C|9999|Cpu%d_tick_gran_state|%d\n",
++				cpu, tick_gran_state);
++		scx_tracing_mark_write(buf);
++		per_cpu(prev_tick_gran_state, cpu) = tick_gran_state;
++	}
++}
++
++void scx_nohz_balancer_kick(struct rq *rq, unsigned int *flags, int *done)
++{
++	if (!scx_stats_trace)
++		return;
++	*done = 1;
++}
++
++void scx_sched_rebalance_domains(void *unused, struct rq *rq, int *continue_balancing)
++{
++	if (!scx_stats_trace)
++		return;
++
++	*continue_balancing = 0;
++}
++
++int find_idx_from_task(struct task_struct *p)
++{
++	int idx, ids = -1;
++	int sp_dl;
++	struct task_group *tg = p->sched_task_group;
++	struct scx_entity *scx = get_oplus_ext_entity(p);
++
++	if (scx) {
++		sp_dl = scx->sched_prop & SCHED_PROP_DEADLINE_MASK;
++		if (sp_dl) {
++			idx = sp_dl;
++			goto done;
++		}
++		if (scx->ext_flags & EXT_FLAG_RT_CHANGED) {
++			idx = RT_PRIO_TO_IDX(scx->prio_backup);
++			goto done;
++		}
++	}
++
++	if (tg && tg->css.cgroup)
++		ids = tg->css.cgroup->kn->id;
++
++	idx = (ids >= 0 && ids < NUMS_CGROUP_KNIDS) ? cgroup_ids_tab[ids] : DEFAULT_CGROUP_DL_IDX;
++
++done:
++	if (idx < 0 || idx >= MAX_BPF_DSQS) {
++		debug_printk("idx error, idx = %d-----\n", idx);
++		idx = DEFAULT_CGROUP_DL_IDX;
++	}
++	return idx;
++}
++
++static inline struct task_struct *first_dsq_task_fifo(struct scx_dispatch_q *dsq)
++{
++	if (!list_empty(&dsq->fifo))
++		return lts_to_ts(list_first_entry(&dsq->fifo,
++						struct lunar_task_struct, scx.dsq_node.fifo));
++
++	return NULL;
++}
++
++static inline struct scx_entity *first_dsq_entity_fifo(struct scx_dispatch_q *dsq)
++{
++	if (!list_empty(&dsq->fifo))
++		return list_first_entry(&dsq->fifo,
++						struct scx_entity, dsq_node.fifo);
++
++	return NULL;
++}
++
++bool update_dsq_timeout(struct scx_dispatch_q *dsq, int idx, bool force_update)
++{
++	u64 duration, deadline, deadline_jiffies;
++	struct task_struct *first;
++	unsigned long flags;
++	struct scx_entity *scx;
++	/* PERIOD dsq do not care timeout */
++	if (idx < NON_PERIOD_START)
++		return false;
++
++	deadline = SCX_BPF_DSQS_DEADLINE[idx];
++	raw_spin_lock_irqsave(&dsq->lock, flags);
++
++	if (list_empty(&dsq->fifo)) {
++		dsq->is_timeout = false;
++		raw_spin_unlock_irqrestore(&dsq->lock, flags);
++		return false;
++	}
++
++	if (dsq->is_timeout && !force_update) {
++		raw_spin_unlock_irqrestore(&dsq->lock, flags);
++		return true;
++	}
++
++	first = first_dsq_task_fifo(dsq);
++	scx = get_oplus_ext_entity(first);
++
++	duration = jiffies - scx->runnable_at;
++	deadline_jiffies = msecs_to_jiffies(deadline);
++
++	dsq->is_timeout = (duration <= deadline_jiffies) ? false : true;
++	raw_spin_unlock_irqrestore(&dsq->lock, flags);
++
++	trace_scx_update_dsq_timeout(first, dsq, scx->runnable_at, deadline_jiffies, duration, force_update);
++	return dsq->is_timeout;
++}
++
++void __maybe_unused
++scx_watchdog_scan(struct scx_dispatch_q *dsq, int cpu)
++{
++	struct task_struct *first;
++	struct scx_entity *scx;
++	u64 duration;
++	unsigned long flags;
++	raw_spin_lock_irqsave(&dsq->lock, flags);
++	if (list_empty(&dsq->fifo)) {
++		raw_spin_unlock_irqrestore(&dsq->lock, flags);
++		return;
++	}
++
++	first = first_dsq_task_fifo(dsq);
++	scx = get_oplus_ext_entity(first);
++	duration = jiffies - scx->runnable_at;
++
++	if (duration > 10) {
++		pr_err("%s[%d], long runnable runnable_at=%lu, duration=%llu, detected in cpu=%d, dsq=%d\n",
++			first->comm, first->pid, scx->runnable_at, duration, cpu, scx->gdsq_idx);
++	}
++	raw_spin_unlock_irqrestore(&dsq->lock, flags);
++}
++
++static atomic_t in_scanning;
++static u64 scx_lastscan_jiffies;
++void scx_scan_timeout(void)
++{
++	int i, cpu;
++	struct scx_dispatch_q *dsq;
++
++	if (!scx_enabled_enter())
++		return;
++
++	if (atomic_cmpxchg(&in_scanning, 0, 1))
++		goto exit;
++
++	if (jiffies <= scx_lastscan_jiffies) {
++		atomic_set(&in_scanning, 0);
++		goto exit;
++	}
++	scx_lastscan_jiffies = jiffies;
++
++	for_each_cpu(cpu, cpu_possible_mask) {
++		for (i = NON_PERIOD_START; i < NON_PERIOD_END; i++) {
++			dsq = per_cpu_ptr(&gdsqs[i], cpu);
++			update_dsq_timeout(dsq, i, false);
++		}
++	}
++	atomic_set(&in_scanning, 0);
++exit:
++	scx_enabled_exit();
++}
++
++static struct scx_dispatch_q* find_dsq_from_task(struct scx_entity *scx, struct task_struct *p, int cpu)
++{
++	int idx;
++	struct scx_dispatch_q *dsq;
++
++	idx = find_idx_from_task(p);
++	dsq = per_cpu_ptr(&gdsqs[idx], cpu);
++	scx->gdsq_idx = idx;
++	return dsq;
++}
++
++static bool scx_dsq_priq_less(struct rb_node *node_a,
++			      const struct rb_node *node_b)
++{
++	const struct scx_entity *a =
++		container_of(node_a, struct scx_entity, dsq_node.priq);
++	const struct scx_entity *b =
++		container_of(node_b, struct scx_entity, dsq_node.priq);
++
++	return time_before64(a->dsq_vtime, b->dsq_vtime);
++}
++
++static void dispatch_enqueue(struct scx_entity *scx, struct scx_dispatch_q *dsq, struct task_struct *p,
++			     u64 enq_flags, struct rq* rq)
++{
++	unsigned long flags;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	struct scx_dsq_stats *sds = &srq->local_dsq_s;
++	scx_assert_rq_lock(rq);
++	if (scx->dsq || !list_empty(&scx->dsq_node.fifo)) {
++		WARN_ON_ONCE(1);
++		return;
++	}
++	raw_spin_lock_irqsave(&dsq->lock, flags);
++
++	if (enq_flags & SCX_ENQ_DSQ_PRIQ) {
++		scx->dsq_flags |= SCX_TASK_DSQ_ON_PRIQ;
++		rb_add_cached(&scx->dsq_node.priq, &dsq->priq,
++					scx_dsq_priq_less);
++	} else {
++		if (enq_flags & (SCX_ENQ_HEAD | SCX_ENQ_PREEMPT)) {
++			struct task_struct *first = first_dsq_task_fifo(dsq);
++			if (first) {
++				struct scx_entity *scx_f = get_oplus_ext_entity(first);
++				if (unlikely(!scx_f)) {
++					SCX_BUG("task queued in dsq must has scx_entity!\n");
++					scx->runnable_at = jiffies;
++				} else
++					scx->runnable_at = scx_f->runnable_at;
++			} else
++				scx->runnable_at = jiffies;
++			list_add(&scx->dsq_node.fifo, &dsq->fifo);
++		}
++		else {
++			scx->runnable_at = jiffies;
++			list_add_tail(&scx->dsq_node.fifo, &dsq->fifo);
++		}
++	}
++	if (!dsq->nr)
++		per_cpu(dsqs_map, dsq->cpu) |= (1 << dsq->idx);
++	dsq->nr++;
++	scx->dsq = dsq;
++	scx->sts.sdsq = NULL;
++	if (scx->gdsq_idx < NON_PERIOD_START)
++		sds->nr_period_tasks++;
++	raw_spin_unlock_irqrestore(&dsq->lock, flags);
++	scx_trace_dispatch_enqueue(scx, p, rq);
++}
++
++static void do_enqueue_task(struct scx_entity *scx, struct rq *rq, struct task_struct *p, u64 enq_flags)
++{
++	struct scx_dispatch_q* d;
++	scx_assert_rq_lock(rq);
++
++	d = find_dsq_from_task(scx, p, rq->cpu);
++	if (!(enq_flags & SCX_ENQ_HEAD) || !scx->slice)
++		scx->slice = SCX_SLICE_DFL;
++	dispatch_enqueue(scx, d, p, enq_flags, rq);
++}
++
++static inline bool scx_task_fair(struct task_struct *p)
++{
++	return p->prio >= MAX_RT_PRIO && !is_idle_task(p);
++}
++
++void enqueue_task_scx(struct rq *rq, struct task_struct *p, int enq_flags)
++{
++	struct scx_entity *scx;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	if (p->cpus_ptr == &scx_cpumask_full) {
++		scx_assert_spin_held(&p->pi_lock);
++		p->cpus_ptr = &p->cpus_mask;
++	}
++
++	if (!scx_enabled_enter())
++		return;
++
++	if (!scx_task_fair(p))
++		goto exit;
++	scx_assert_rq_lock(rq);
++	/*ots is NULL*/
++	scx = get_oplus_ext_entity(p);
++	if (!scx)
++		goto exit;
++
++	if (unlikely(scx->flags & SCX_TASK_QUEUED)) {
++		scx_task_dump(current);
++		scx_task_dump(p);
++		SCX_BUG("double enqueue detect!\n");
++		goto exit;
++	}
++	scx->flags |= SCX_TASK_QUEUED;
++	srq->local_dsq_s.nr_tasks++;
++
++	if (!scx->sts.demand_scaled) {
++		int i;
++		/*new task*/
++		scx->sts.demand_scaled = scx_init_load_windows_scaled;
++		scx->sts.demand = scx_init_load_windows;
++		for (i = 0; i < RAVG_HIST_SIZE; ++i)
++			scx->sts.sum_history[i] = scx_init_load_windows;
++	}
++
++	/*set_user_nice -> dequeue && enqueue when p is on_cpu*/
++	if (!task_running(rq, p))
++		do_enqueue_task(scx, rq, p, enq_flags);
++exit:
++	scx_enabled_exit();
++}
++
++static bool task_linked_on_dsq(struct scx_entity *scx)
++{
++	return !list_empty(&scx->dsq_node.fifo) ||
++		!RB_EMPTY_NODE(&scx->dsq_node.priq);
++}
++
++static void task_unlink_from_dsq(struct scx_entity *scx,
++				 struct scx_dispatch_q *dsq)
++{
++	if (scx->dsq_flags & SCX_TASK_DSQ_ON_PRIQ) {
++		rb_erase_cached(&scx->dsq_node.priq, &dsq->priq);
++		RB_CLEAR_NODE(&scx->dsq_node.priq);
++		scx->dsq_flags &= ~SCX_TASK_DSQ_ON_PRIQ;
++	} else {
++		list_del_init(&scx->dsq_node.fifo);
++	}
++}
++
++static void dispatch_dequeue(struct scx_entity *scx, struct rq *rq, struct task_struct *p)
++{
++	struct scx_dispatch_q *dsq = scx->dsq;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	struct scx_dsq_stats *sds = &srq->local_dsq_s;
++	bool update_timeout = false;
++	int idx = scx->gdsq_idx;
++	unsigned long flags;
++
++	scx_assert_rq_lock(rq);
++
++	if (!dsq) {
++		WARN_ON_ONCE(task_linked_on_dsq(scx));
++		return;
++	}
++	raw_spin_lock_irqsave(&dsq->lock, flags);
++
++	if (dsq->is_timeout && (scx == first_dsq_entity_fifo(dsq)))
++		update_timeout = true;
++
++	WARN_ON_ONCE(!task_linked_on_dsq(scx));
++	task_unlink_from_dsq(scx, dsq);
++	dsq->nr--;
++	scx->dsq = NULL;
++	if (!dsq->nr)
++		per_cpu(dsqs_map, dsq->cpu) &= ~(1 << dsq->idx);
++	if (scx->gdsq_idx < NON_PERIOD_START)
++		sds->nr_period_tasks--;
++	raw_spin_unlock_irqrestore(&dsq->lock, flags);
++
++	if (update_timeout)
++		update_dsq_timeout(dsq, idx, true);
++
++	scx_trace_dispatch_dequeue(scx, p, rq);
++}
++
++void dequeue_task_scx(struct rq *rq, struct task_struct *p, int deq_flags)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	struct scx_entity *scx;
++	if (!scx_enabled_enter())
++		return;
++	scx = get_oplus_ext_entity(p);
++	if (!scx)
++		goto exit;
++
++	if (!(scx->flags & SCX_TASK_QUEUED)) {
++		goto exit;
++	}
++
++	scx->flags &= ~SCX_TASK_QUEUED;
++	if (unlikely(srq->local_dsq_s.nr_tasks <= 0))
++		SCX_BUG("nr_tasks less than 0! nr_tasks=%d\n", srq->local_dsq_s.nr_tasks);
++
++	srq->local_dsq_s.nr_tasks--;
++
++	dispatch_dequeue(scx, rq, p);
++exit:
++	scx_enabled_exit();
++}
++
++static void
++scx_update_task_runtime(void *unused, struct task_struct *curr, u64 delta_exec, u64 vruntime)
++{
++	struct scx_entity *curr_scx;
++	if (!scx_enabled_enter())
++		return;
++	curr_scx = get_oplus_ext_entity(curr);
++	if (!curr_scx)
++		goto exit;
++
++	if (curr_scx->slice != SCX_SLICE_INF)
++		curr_scx->slice -= min(curr_scx->slice, delta_exec);
++exit:
++	scx_enabled_exit();
++}
++
++bool consume_dispatch_q(struct rq *rq,
++			       struct scx_dispatch_q *dsq, struct task_struct **next, int balance_cpu)
++{
++	struct task_struct *p;
++	struct lunar_task_struct *lts;
++	bool found = false;
++
++	scx_assert_rq_lock(rq);
++
++	if (list_empty(&dsq->fifo) && !rb_first_cached(&dsq->priq))
++		return false;
++
++	list_for_each_entry(lts, &dsq->fifo, scx.dsq_node.fifo) {
++		p = lts_to_ts(lts);
++		if (balance_cpu != -1 && (p->nr_cpus_allowed == 1 || p->migration_disabled ||
++				lts->scx.sts.sdsq == (void *)1)) {
++			continue;
++		}
++		*next = p;
++		found = true;
++		lts->scx.sts.sdsq = (void *)1;
++		break;
++	}
++
++	if (found)
++		trace_scx_consume_dsq(rq, p, dsq, lts->scx.runnable_at, balance_cpu);
++
++	return found;
++}
++
++static int consume_period_dsq(struct rq *rq, struct task_struct **next, int balance_cpu)
++{
++	int i;
++	unsigned long dsqs = per_cpu(dsqs_map, rq->cpu) & PERIOD_BITMASK;
++
++	for_each_set_bit(i, &dsqs, MAX_BPF_DSQS) {
++		if (consume_dispatch_q(rq, per_cpu_ptr(&gdsqs[i], rq->cpu), next, balance_cpu)) {
++			return 1;
++		}
++	}
++	return 0;
++}
++
++int consume_non_period_dsq(struct rq *rq, struct task_struct **next, int balance_cpu)
++{
++	bool is_timeout;
++	unsigned long flags;
++	int i;
++	struct scx_dispatch_q *dsq;
++	unsigned long dsqs = per_cpu(dsqs_map, rq->cpu) & NON_PERIOD_BITMASK;
++
++	for_each_set_bit(i, &dsqs, MAX_BPF_DSQS) {
++		dsq = per_cpu_ptr(&gdsqs[i], rq->cpu);
++		raw_spin_lock_irqsave(&dsq->lock, flags);
++		is_timeout = dsq->is_timeout;
++		raw_spin_unlock_irqrestore(&dsq->lock, flags);
++		if (is_timeout) {
++			if (consume_dispatch_q(rq, dsq, next, balance_cpu))
++				return 1;
++		}
++	}
++	return 0;
++}
++
++static int scx_pick_next_task(struct rq *rq, struct task_struct **next, int balance_cpu)
++{
++	scx_assert_rq_lock(rq);
++	if (consume_non_period_dsq(rq, next, balance_cpu))
++		return 1;
++	if (consume_period_dsq(rq, next, balance_cpu))
++		return 1;
++
++	return 0;
++}
++
++void scx_replace_deadline_task_fair(struct rq *rq, struct task_struct **p,
++					struct sched_entity **se, bool *repick, bool simple)
++{
++	struct task_struct *next = NULL;
++
++	if (!rq || !p || !se)
++		return;
++retry:
++	if (scx_pick_next_task(rq, &next, -1)) {
++		/*
++		 * new task cpu must equals to this cpu, or is_same_group return null,
++		 * it will cause stability issue in pick_next_task_fair()
++		 */
++		if (unlikely(task_cpu(next) != rq->cpu)) {
++			pr_err("scx_sched_ext:cpu%d replace task failed, task cpu%d\n", cpu_of(rq), task_cpu(next));
++			dequeue_task_scx(rq, next, 0);
++			goto retry;
++		}
++		*p = next;
++		*se = &next->se;
++		*repick = true;
++	}
++}
++
++static inline void put_prev_task_scx(struct scx_entity *prev_scx, struct rq *rq, struct task_struct *prev)
++{
++	if (prev_scx->flags & SCX_TASK_QUEUED) {
++		do_enqueue_task(prev_scx, rq, prev, prev_scx->slice ? SCX_ENQ_HEAD : 0);
++	}
++}
++
++static inline void set_next_task_scx(struct scx_entity *next_scx, struct rq *rq, struct task_struct *next)
++{
++	if (next_scx->flags & SCX_TASK_QUEUED) {
++		dispatch_dequeue(next_scx, rq, next);
++	}
++}
++
++static DEFINE_PER_CPU(int, prev_sched_state);
++void scx_sched_state_systrace_c(unsigned int cpu, struct task_struct *p)
++{
++	int idx = find_idx_from_task(p);
++
++	if (per_cpu(prev_sched_state, cpu) != idx) {
++		char buf[256];
++
++		snprintf(buf, sizeof(buf), "C|9999|Cpu%d_sched_prop|%d\n", cpu, idx);
++		scx_tracing_mark_write(buf);
++		per_cpu(prev_sched_state, cpu) = idx;
++	}
++}
++
++void scx_schedule(struct task_struct *prev, struct task_struct *next, struct rq *rq)
++{
++	u64 wallclock;
++	struct scx_entity *prev_scx, *next_scx;
++	if(!scx_enabled_enter())
++		return;
++
++	wallclock = scx_rq_clock(rq);
++	prev_scx = get_oplus_ext_entity(prev);
++	if (likely(prev != next)) {
++		next_scx = get_oplus_ext_entity(next);
++		if (prev_scx) {
++			scx_update_task_ravg(prev_scx, prev, rq, PUT_PREV_TASK, wallclock);
++			put_prev_task_scx(prev_scx, rq, prev);
++		}
++
++		if (next_scx) {
++			set_next_task_scx(next_scx, rq, next);
++			scx_update_task_ravg(next_scx, next, rq, PICK_NEXT_TASK, wallclock);
++		}
++		if (dump_info & SCX_DEBUG_SYSTRACE) {
++			scx_sched_state_systrace_c(rq->cpu, next);
++		}
++	} else if (prev_scx) {
++		scx_update_task_ravg(prev_scx, prev, rq, TASK_UPDATE, wallclock);
++	}
++	scx_enabled_exit();
++}
++
++void scx_tick_entry(struct rq *rq)
++{
++	struct scx_entity *curr_scx;
++	if(!scx_enabled_enter())
++		return;
++	curr_scx = get_oplus_ext_entity(rq->curr);
++	if (curr_scx)
++		scx_update_task_ravg(curr_scx, rq->curr, rq, TASK_UPDATE, scx_rq_clock(rq));
++	if (!scx_cpu_exclusive(rq->cpu))
++		scx_scan_timeout();
++	if (dump_info & SCX_DEBUG_SYSTRACE)
++		tick_gran_state_systrace_c(rq->cpu, 0);
++	scx_enabled_exit();
++}
++
++extern void set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se);
++
++void scx_replace_next_task_fair(struct rq *rq, struct task_struct **p,
++			struct sched_entity **se, bool *repick, bool simple, struct task_struct *prev)
++{
++	/*
++	 * LunarKernel Note:
++	 * This callback function may cause kernel panic,
++	 * so we temporarily return it directly.
++	 */
++    //return;
++
++	if (!scx_enabled_enter())
++		return;
++
++	scx_replace_deadline_task_fair(rq, p, se, repick, simple);
++	/*
++	* NOTE:
++	* Because the following code is not merged in kernel-5.15,
++	* set_next_entity() will no longer be called to remove the
++	* task from the red-black tree when pick_next_task_fair(),
++	* so we remove the picked task here.
++	*
++	* https://android-review.googlesource.com/c/kernel/common/+/1667002
++	*/
++	if (simple && true == *repick) {
++		for_each_sched_entity((*se)) {
++			struct cfs_rq *cfs_rq = cfs_rq_of(*se);
++			set_next_entity(cfs_rq, *se);
++		}
++	}
++	scx_enabled_exit();
++}
++
++static inline bool scx_is_tiny_task(struct task_struct *p)
++{
++	struct scx_entity *scx;
++	if (!p)
++		return false;
++	scx = get_oplus_ext_entity(p);
++	if (!scx)
++		return false;
++
++	return scx->sts.demand_scaled <= balance_small_task_th;
++}
++
++/*newidle balance*/
++static DEFINE_PER_CPU(cpumask_t, balance_cpus);
++void scx_newidle_balance(struct rq *this_rq,
++  					struct rq_flags *rf, int *pulled_task, int *done, bool partial_force)
++{
++	const cpumask_t *cluster = NULL;
++	struct scx_sched_rq_stats *src_srq, *this_srq;
++	struct scx_entity *scx;
++	struct rq *src_rq;
++	struct task_struct *pull_task = NULL, *p;
++	int src_cpu, this_cpu = this_rq->cpu;
++	const cpumask_t *backup;
++
++	int src_nr_period_tasks_debug_prev = -1, src_nr_period_tasks_debug_now = -1, this_nr_period_tasks_debug = -1;
++	u64 src_cpu_load_debug_prev = 0, src_cpu_load_debug_now = 0;
++
++	if (!scx_enabled_enter())
++		return;
++	*done = 1;
++	*pulled_task = 0;
++
++	if (!scx_newidle_balance_ctl)
++		goto exit;
++
++	if (unlikely(partial_enable > 1)) {
++		cluster = cpu_online_mask;
++	} else if (partial_enable && (scx_cpu_partial(this_cpu) || scx_cpu_big(this_cpu))) {
++		cpumask_or(this_cpu_ptr(&balance_cpus), iso_masks.big, iso_masks.partial);
++		cluster = this_cpu_ptr(&balance_cpus);
++	} else if (!scx_cpu_exclusive(this_cpu)) {
++		cluster = scx_cpu_iso_cluster(this_cpu);
++	}
++
++	if (!cluster)
++		goto exit;
++
++	this_srq = &per_cpu(scx_sched_rq_stats, this_cpu);
++	rq_unpin_lock(this_rq, rf);
++
++	for_each_cpu(src_cpu, cluster) {
++		if (src_cpu == this_cpu)
++			continue;
++
++		src_rq = cpu_rq(src_cpu);
++		if (src_rq->nr_running < 2 ||
++				(src_rq->nr_running == 2 && scx_is_tiny_task(src_rq->curr)))
++			continue;
++
++		src_srq = &per_cpu(scx_sched_rq_stats, src_cpu);
++
++		double_lock_balance(this_rq, src_rq);
++		/*
++		 * Since we have released rq_lock, check nr_running again,
++		 * there may be a task enqueued. If there is a task that
++		 * can be repicked at this time, we need to set pulled_task,
++		 * otherwise the enqueued task may not be scheduled
++		 */
++		if (this_rq->nr_running) {
++			if (this_rq->cfs.h_nr_running)
++				*pulled_task = 1;
++
++			if (this_rq->nr_running != this_rq->cfs.h_nr_running)
++				*pulled_task = -1;
++			double_unlock_balance(this_rq, src_rq);
++			goto repin;
++		}
++
++		if (trace_scx_newidle_balance_enabled()) {
++			src_nr_period_tasks_debug_prev = src_srq->local_dsq_s.nr_period_tasks;
++			src_cpu_load_debug_prev = scx_cpu_load(src_cpu);
++		}
++
++		if (scx_pick_next_task(src_rq, &pull_task, this_cpu)) {
++			goto pull;
++		}
++
++		list_for_each_entry_reverse(p, &src_rq->cfs_tasks, se.group_node) {
++			scx = get_oplus_ext_entity(p);
++
++			if (!scx || p->nr_cpus_allowed == 1 || p->migration_disabled ||
++					task_running(src_rq, p) || scx->gdsq_idx < NON_PERIOD_START)
++				continue;
++
++			if (scx->sts.sdsq)
++				continue;
++
++			pull_task = p;
++			break;
++		}
++		if (!pull_task) {
++			double_unlock_balance(this_rq, src_rq);
++			continue;
++		}
++
++pull:
++		deactivate_task(src_rq, pull_task, 0);
++		/*double_lock_balance remains serial with task_rq_lock*/
++		backup = pull_task->cpus_ptr;
++		pull_task->cpus_ptr = &scx_cpumask_full;
++		set_task_cpu(pull_task, this_cpu);
++		pull_task->cpus_ptr = backup;
++		activate_task(this_rq, pull_task, 0);
++
++		if (trace_scx_newidle_balance_enabled()) {
++			src_cpu_load_debug_now = scx_cpu_load(src_cpu);
++			src_nr_period_tasks_debug_now = src_srq->local_dsq_s.nr_period_tasks;
++			this_nr_period_tasks_debug = this_srq->local_dsq_s.nr_period_tasks;
++		}
++
++		double_unlock_balance(this_rq, src_rq);
++		*pulled_task = 1;
++		break;
++	}
++
++repin:
++	if (*pulled_task)
++		this_rq->idle_stamp = 0;
++	rq_repin_lock(this_rq, rf);
++
++	if (pull_task)
++		trace_scx_newidle_balance(this_cpu, this_nr_period_tasks_debug, src_cpu, src_nr_period_tasks_debug_prev,
++							src_nr_period_tasks_debug_now, src_cpu_load_debug_prev, src_cpu_load_debug_now, pull_task);
++exit:
++	scx_enabled_exit();
++}
++
++enum fastpaths {
++	NONE = 0,
++	SYNC_WAKEUP,
++	PREV_CPU_FASTPATH,
++	PIPELINE_FASTPATH,
++	CPU_AFFINITY_ONE,
++	CPU_AFFINITY_EXCLUSIVE,
++	CPU_AFFINITY_PARTIAL,
++	CPU_AFFINITY_LITTLE,
++	CPU_OVERLOAD,
++	SELECT_IDLE,
++	SELECT_NR_LEAST
++};
++
++static void scx_select_aware_wake_cpu_nrrunning(struct task_struct *task, const struct cpumask *target_mask,
++										int *best_cpu, const struct cpumask *target_mask2, bool period_task)
++{
++	int least_nr_cpu = -1, i, nr;
++	unsigned int cpu_rq_runnable_cnt = UINT_MAX;
++	struct cpumask allowed_mask = { CPU_BITS_NONE };
++	if (!target_mask2)
++		cpumask_and(&allowed_mask, task->cpus_ptr, target_mask);
++	else
++		cpumask_and(&allowed_mask, target_mask2, target_mask);
++
++	for_each_cpu(i, &allowed_mask) {
++		if (available_idle_cpu(i)) {
++			*best_cpu = i;
++			return;
++		}
++		if (!period_task) {
++			if (cpu_rq(i)->nr_running < cpu_rq_runnable_cnt) {
++				cpu_rq_runnable_cnt = cpu_rq(i)->nr_running;
++				least_nr_cpu = i;
++			} else if (cpu_rq(i)->nr_running == cpu_rq_runnable_cnt) {
++				if (nr_period_tasks(i) < nr_period_tasks(least_nr_cpu)) {
++					least_nr_cpu = i;
++				}
++			}
++		} else {
++			nr = nr_period_tasks(i);
++			if (nr < cpu_rq_runnable_cnt) {
++				cpu_rq_runnable_cnt = nr;
++				least_nr_cpu = i;
++			} else if (nr == cpu_rq_runnable_cnt) {
++				if (cpu_rq(i)->nr_running < cpu_rq(least_nr_cpu)->nr_running) {
++					least_nr_cpu = i;
++				}
++			}
++		}
++	}
++
++	if (least_nr_cpu != -1)
++		*best_cpu = least_nr_cpu;
++}
++
++static inline int scx_get_task_pipline_cpu(struct task_struct *p)
++{
++	int cpu = -1;
++	trace_android_vh_scx_select_cpu_dfl(p, &cpu);
++	return cpu;
++}
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_scx_select_cpu_dfl);
++
++static DEFINE_PER_CPU(cpumask_t, energy_cpus);
++int scx_find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
++				     int sync)
++{
++	int fastpath = NONE;
++	int skip_min = false;
++	int best_energy_cpu = prev_cpu, cpu = smp_processor_id();
++	int pipeline_cpu = -1;
++	int dsq_idx = find_idx_from_task(p);
++	struct cpumask *allowed_mask = this_cpu_ptr(&energy_cpus);
++
++	rcu_read_lock();
++
++	skip_min = (dsq_idx < NON_PERIOD_START);
++
++	pipeline_cpu = scx_get_task_pipline_cpu(p);
++	if (pipeline_cpu != -1) {
++		if (cpumask_test_cpu(pipeline_cpu, p->cpus_ptr) &&
++				cpu_active(pipeline_cpu)) {
++				best_energy_cpu = pipeline_cpu;
++				fastpath = PIPELINE_FASTPATH;
++				goto out;
++		}
++	}
++
++	if (sync && ((skip_min && scx_cpu_little(cpu)) ||
++				(scx_exclusive_sync_ctl && scx_cpu_exclusive(cpu))))
++		sync = 0;
++
++	if (sync && !(scx_cpu_partial(cpu) && !partial_enable)) {
++		best_energy_cpu = cpu;
++		fastpath = SYNC_WAKEUP;
++		goto out;
++	}
++
++	if (p->nr_cpus_allowed == 1) {
++		best_energy_cpu = cpumask_any(p->cpus_ptr);
++		fastpath = CPU_AFFINITY_ONE;
++		goto out;
++	}
++
++	if (available_idle_cpu(prev_cpu) && !(scx_cpu_partial(prev_cpu)
++						&& !partial_enable) && !scx_cpu_exclusive(prev_cpu)
++						&& !(skip_min && scx_cpu_little(prev_cpu)) && cpu_active(prev_cpu)) {
++		best_energy_cpu = prev_cpu;
++		fastpath = PREV_CPU_FASTPATH;
++		goto out;
++	}
++
++	if (unlikely(partial_enable > 1)) {
++		scx_select_aware_wake_cpu_nrrunning(p, p->cpus_ptr, &best_energy_cpu, NULL, skip_min);
++		fastpath = CPU_OVERLOAD;
++		goto out;
++	}
++
++	cpumask_andnot(allowed_mask, p->cpus_ptr, iso_masks.exclusive);
++
++	if (cpumask_empty(allowed_mask)) {
++		scx_select_aware_wake_cpu_nrrunning(p, iso_masks.exclusive, &best_energy_cpu, NULL, skip_min);
++		fastpath = CPU_AFFINITY_EXCLUSIVE;
++		goto out;
++	}
++
++	if (skip_min) {
++		cpumask_andnot(allowed_mask, allowed_mask, iso_masks.little);
++		if (cpumask_empty(allowed_mask)) {
++			scx_select_aware_wake_cpu_nrrunning(p, iso_masks.little, &best_energy_cpu, NULL, skip_min);
++			fastpath = CPU_AFFINITY_LITTLE;
++			goto out;
++		}
++	}
++
++	if (!partial_enable) {
++		cpumask_andnot(allowed_mask, allowed_mask, iso_masks.partial);
++		if (cpumask_empty(allowed_mask)) {
++			scx_select_aware_wake_cpu_nrrunning(p, iso_masks.partial, &best_energy_cpu, NULL, skip_min);
++			fastpath = CPU_AFFINITY_PARTIAL;
++			goto out;
++		}
++	}
++
++	scx_select_aware_wake_cpu_nrrunning(p, allowed_mask, &best_energy_cpu, NULL, skip_min);
++	fastpath = SELECT_NR_LEAST;
++
++out:
++	rcu_read_unlock();
++	trace_scx_find_target_cpu_fair(p, best_energy_cpu, fastpath, allowed_mask, partial_enable, dsq_idx);
++	if (best_energy_cpu < 0 || best_energy_cpu >= nr_cpu_ids)
++		best_energy_cpu = prev_cpu;
++
++	return best_energy_cpu;
++}
++
++void scx_select_task_rq_fair(struct task_struct *p, int *target_cpu, int wake_flags, int prev_cpu)
++{
++	int sync;
++
++	if (!scx_enabled_enter())
++		return;
++
++	if ((wake_flags & (WF_TTWU | WF_FORK)) && (p->cpus_ptr == &p->cpus_mask)
++				&& (p->nr_cpus_allowed > 1) && !sched_feat(TTWU_QUEUE)) {
++		p->cpus_ptr = &scx_cpumask_full;
++	}
++
++	sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
++
++	*target_cpu = scx_find_energy_efficient_cpu(p, prev_cpu, sync);
++	scx_enabled_exit();
++}
++
++bool scx_should_honor_rt_sync(struct rq *rq, struct task_struct *p)
++{
++	if (cpumask_test_cpu(rq->cpu, iso_masks.partial) && !partial_enable)
++		return false;
++
++	if (cpumask_test_cpu(rq->cpu, iso_masks.exclusive))
++		return false;
++
++	return true;
++}
++
++void scx_rt_find_lowest_rq(struct task_struct *task,
++				   struct cpumask *lowest_mask, int ret, int *best_cpu)
++{
++	struct cpumask allowed_mask = { CPU_BITS_NONE };
++	int reason, target = -1;
++	int dsq_idx = find_idx_from_task(task);
++	if (!ret)
++		return;
++
++	if (!scx_enabled_enter())
++		return;
++
++	cpumask_andnot(&allowed_mask, lowest_mask, iso_masks.exclusive);
++
++	if (cpumask_empty(&allowed_mask)) {
++		cpumask_andnot(&allowed_mask, task->cpus_ptr, iso_masks.exclusive);
++		if (unlikely(cpumask_empty(&allowed_mask))) {
++			scx_select_aware_wake_cpu_nrrunning(task, iso_masks.exclusive, &target, lowest_mask, true);
++			reason = CPU_AFFINITY_EXCLUSIVE;
++			goto out;
++		}
++	}
++
++	if (!partial_enable) {
++		cpumask_andnot(&allowed_mask, &allowed_mask, iso_masks.partial);
++		if (cpumask_empty(&allowed_mask)) {
++			scx_select_aware_wake_cpu_nrrunning(task, iso_masks.partial, &target, lowest_mask, true);
++			reason = CPU_AFFINITY_PARTIAL;
++			goto out;
++		}
++	}
++
++	scx_select_aware_wake_cpu_nrrunning(task, &allowed_mask, &target, NULL, true);
++	reason = SELECT_NR_LEAST;
++out:
++	trace_scx_find_target_cpu_rt(task, target, reason, &allowed_mask, partial_enable, dsq_idx);
++	if (target < nr_cpu_ids && target != -1)
++		*best_cpu = target;
++	scx_enabled_exit();
++}
++
++#ifdef CONFIG_UCLAMP_TASK
++static inline bool scx_rt_task_fits_capacity(struct task_struct *p, int cpu)
++{
++	unsigned int min_cap;
++	unsigned int max_cap;
++	unsigned int cpu_cap;
++
++	min_cap = uclamp_eff_value(p, UCLAMP_MIN);
++	max_cap = uclamp_eff_value(p, UCLAMP_MAX);
++
++	cpu_cap = capacity_orig_of(cpu);
++
++	return cpu_cap >= min(min_cap, max_cap);
++}
++#else
++static inline bool scx_rt_task_fits_capacity(struct task_struct *p, int cpu)
++{
++	return true;
++}
++#endif
++
++static DEFINE_PER_CPU(cpumask_var_t, scx_local_cpu_mask);
++void scx_select_task_rq_rt(struct task_struct *task, int cpu,
++					int sd_flag, int wake_flags, int *new_cpu)
++{
++	bool sync = !!(wake_flags & WF_SYNC);
++	struct rq *rq, *this_cpu_rq;
++	int this_cpu;
++	struct task_struct *curr;
++	struct cpumask *lowest_mask = NULL;
++
++	int ret, reason, target = -1;
++
++	if (!scx_enabled_enter())
++		return;
++
++	/* For anything but wake ups, just return the task_cpu */
++	if (sd_flag != SD_BALANCE_WAKE && sd_flag != SD_BALANCE_FORK) {
++		reason = NONE;
++		goto exit;
++	}
++
++	if ((task->cpus_ptr == &task->cpus_mask)
++				&& (task->nr_cpus_allowed > 1) && !sched_feat(TTWU_QUEUE)) {
++		task->cpus_ptr = &scx_cpumask_full;
++	}
++	rq = cpu_rq(cpu);
++
++	rcu_read_lock();
++	curr = READ_ONCE(rq->curr);
++	this_cpu = raw_smp_processor_id();
++	this_cpu_rq = cpu_rq(this_cpu);
++
++	if (cpu_active(this_cpu) && cpumask_test_cpu(this_cpu, task->cpus_ptr)
++		&& sync && scx_should_honor_rt_sync(this_cpu_rq, task)) {
++		reason = SYNC_WAKEUP;
++		*new_cpu = this_cpu;
++		goto unlock;
++	}
++
++	*new_cpu = cpu;
++	lowest_mask = this_cpu_cpumask_var_ptr(scx_local_cpu_mask);
++
++	ret = cpupri_find_fitness(&task_rq(task)->rd->cpupri, task, lowest_mask, scx_rt_task_fits_capacity);
++
++	if (!ret) {
++		reason = NONE;
++		goto unlock;
++	}
++
++	scx_rt_find_lowest_rq(task, lowest_mask, ret, &target);
++
++	if (target != -1)
++		*new_cpu = target;
++unlock:
++	rcu_read_unlock();
++exit:
++	scx_enabled_exit();
++}
++
++enum {
++	USR_HINT,
++	TOP_GAME_THREAD,
++	HIGH_PERIOD_TASK,
++	TIMEOUT,
++};
++
++void scx_cfs_check_preempt_wakeup(struct rq *rq, struct task_struct *p, bool *preempt, bool *nopreempt)
++{
++	int reason = -1, p_idx = -1, curr_idx = -1, check_result = -1, p_top = -1, curr_top = -1;
++
++	if (!scx_stats_trace)
++		return;
++	trace_android_vh_check_preempt_curr_scx(rq, p, 0, &check_result);
++
++	if (check_result > 0) {
++		*preempt = true;
++		reason = USR_HINT;
++		goto preempt;
++	} else if (!check_result) {
++		*nopreempt = true;
++		reason = USR_HINT;
++		goto nopreempt;
++	}
++
++	p_top = sched_prop_get_top_thread_id(p);
++	curr_top = sched_prop_get_top_thread_id(rq->curr);
++	if (curr_top <= 0) {
++		if (p_top > 0) {
++			*preempt = true;
++			reason = TOP_GAME_THREAD;
++			goto preempt;
++		}
++	} else {
++		*nopreempt = true;
++		reason = TOP_GAME_THREAD;
++		goto nopreempt;
++	}
++
++	curr_idx = find_idx_from_task(rq->curr);
++	p_idx = find_idx_from_task(p);
++
++	if ((curr_idx < NON_PERIOD_START) || curr_idx < p_idx) {
++		*nopreempt = true;
++		reason = HIGH_PERIOD_TASK;
++		goto nopreempt;
++	}
++
++	if (p_idx < NON_PERIOD_START && curr_idx >= NON_PERIOD_START) {
++		*preempt = true;
++		reason = HIGH_PERIOD_TASK;
++		goto preempt;
++	}
++	return;
++nopreempt:
++	trace_scx_cfs_check_preempt_wakeup(p, p_idx, rq->curr, curr_idx, reason, 0);
++	return;
++preempt:
++	trace_scx_cfs_check_preempt_wakeup(p, p_idx, rq->curr, curr_idx, reason, 1);
++}
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_check_preempt_curr_scx);
++
++int scx_sched_lpm_disallowed_time(int cpu, u64 *timeout)
++{
++	u64 task_exec_scale;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu);
++	task_exec_scale = srq->task_exec_scale;
++	if(!scx_stats_trace || !scx_idle_ctl)
++		return -EAGAIN;
++
++	if (!cpumask_test_cpu(cpu, iso_masks.exclusive) || (scx_cpu_util(cpu) < (task_exec_scale >> 2)))
++		return -EAGAIN;
++
++	*timeout = 0;
++	return 0;
++}
++
++/*Called when iso.big cpu load update*/
++void partial_load_ctrl(struct rq *rq)
++{
++	u64 load;
++	if (cpumask_empty(iso_masks.partial))
++		return;
++	if (cpumask_test_cpu(rq->cpu, iso_masks.big)) {
++		load = scx_cpu_load(rq->cpu);
++
++		if (!partial_enable && (load > arch_scale_cpu_capacity(rq->cpu))) {
++			partial_enable = true;
++			if (dump_info & SCX_DEBUG_SYSTRACE)
++				partial_backup_systrace_c(1);
++		}
++	}
++}
++
++void scx_scheduler_tick(void)
++{
++	int cpu = smp_processor_id();
++	struct rq *rq = cpu_rq(cpu);
++	struct scx_entity *scx_curr = NULL;
++	if(!scx_enabled_enter())
++		return;
++
++	if(unlikely(!tick_sched_clock)) {
++		struct scx_sched_rq_stats *srq;
++		/*
++		 * Let the window begin 20us prior to the tick,
++		 * that way we are guaranteed a rollover when the tick occurs.
++		 * Use rq->clock directly instead of rq_clock() since
++		 * we do not have the rq lock and
++		 * rq->clock was updated in the tick callpath.
++		 */
++		if (cmpxchg64(&tick_sched_clock, 0, rq->clock - 20000))
++			goto exit;
++		atomic64_set(&scx_run_rollover_lastq_ws, tick_sched_clock);
++		for_each_possible_cpu(cpu) {
++			srq = &per_cpu(scx_sched_rq_stats, cpu);
++			srq->window_start = tick_sched_clock;
++		}
++	}
++
++	raw_spin_lock(&rq->__lock);
++	if (likely(rq->curr))
++		scx_curr = get_oplus_ext_entity(rq->curr);
++	if (scx_curr && (scx_curr->flags & SCX_TASK_QUEUED) && rq->nr_running > 1) {
++		if (scx_tick_ctl && !scx_curr->slice) {
++			resched_curr(rq);
++		}
++	}
++	raw_spin_unlock(&rq->__lock);
++	if (dump_info & SCX_DEBUG_SYSTRACE)
++		tick_gran_state_systrace_c(smp_processor_id(), 2);
++
++exit:
++	scx_enabled_exit();
++}
++
++void scx_scheduler_tick_handler(struct rq *rq)
++{
++	scx_scheduler_tick();
++}
++
++DEFINE_PER_CPU(struct sched_yield_state, ystate);
++void scx_skip_yield(long *skip)
++{
++	unsigned long flags, usleep;
++	struct sched_yield_state *ys;
++	int cpu = raw_smp_processor_id();
++	if (scx_stats_trace && sysctl_yield_opt_enable && scx_cpu_exclusive(cpu) && !(*skip)) {
++		ys = &per_cpu(ystate, cpu);
++		raw_spin_lock_irqsave(&ys->lock, flags);
++		if (ys->usleep > MIN_YIELD_SLEEP || ys->cnt >= DEFAULT_YIELD_SLEEP_TH) {
++			*skip = true;
++			usleep = ys->usleep_times ?
++					max(ys->usleep >> ys->usleep_times, MIN_YIELD_SLEEP):ys->usleep;
++			raw_spin_unlock_irqrestore(&ys->lock, flags);
++			usleep_range_state(usleep, usleep, TASK_IDLE);
++			ys->usleep_times++;
++			return;
++		}
++		(ys->cnt)++;
++		raw_spin_unlock_irqrestore(&ys->lock, flags);
++	}
++}
++
++/*struct scx_sched_gki_ops scx_ops = {
++	.newidle_balance = scx_newidle_balance,
++	.replace_next_task_fair = scx_replace_next_task_fair,
++	.schedule = scx_schedule,
++	.enqueue_task = enqueue_task_scx,
++	.dequeue_task = dequeue_task_scx,
++	.select_task_rq_rt = scx_select_task_rq_rt,
++	.rt_find_lowest_rq = scx_rt_find_lowest_rq,
++	.select_task_rq_fair = scx_select_task_rq_fair,
++	.tick_entry = scx_tick_entry,
++	.sched_lpm_disallowed_time = scx_sched_lpm_disallowed_time,
++	.nohz_balancer_kick = scx_nohz_balancer_kick,
++	.cfs_check_preempt_wakeup = scx_cfs_check_preempt_wakeup,
++	.do_sched_yield_before = scx_skip_yield,
++};*/
++
++#include "scx_hooks.c"
++
++int scx_sched_gki_init_early(void)
++{
++	int ret = 0;
++	int cpu;
++	
++	cpumask_bits(&scx_cpumask_full)[0] = 0xff;
++
++    //register_scx_sched_gki_ops(&scx_ops);
++	scx_hooks_register();
++
++	for_each_cpu(cpu, cpu_possible_mask) {
++		struct sched_yield_state *ys = &per_cpu(ystate, cpu);
++		if(!(zalloc_cpumask_var_node(&per_cpu(scx_local_cpu_mask, cpu),
++					GFP_KERNEL, cpu_to_node(cpu)))) {
++			pr_err("scx_local_cpu_mask alloc failed for cpu%d\n", cpu);
++			return -1;
++		}
++		raw_spin_lock_init(&ys->lock);
++	}
++
++	REGISTER_TRACE(android_rvh_sched_rebalance_domains, scx_sched_rebalance_domains, NULL, out);
++	REGISTER_TRACE(sched_stat_runtime, scx_update_task_runtime, NULL, out);
++out:
++	return ret;
++}
++
++void scx_sched_gki_init(void)
++{
++	unsigned long flags;
++	struct sched_yield_state *ys;
++	int cpu;
++
++	for_each_possible_cpu(cpu) {
++		per_cpu(cpuctrl_high_util_scaled, cpu) = arch_scale_cpu_capacity(cpu) * cpuctrl_high_ratio_scaled / 100;
++		per_cpu(cpuctrl_low_util_scaled, cpu) = arch_scale_cpu_capacity(cpu) * cpuctrl_low_ratio_scaled / 100;
++		if (scx_cpu_exclusive(cpu)) {
++			ys = &per_cpu(ystate, cpu);
++			raw_spin_lock_irqsave(&ys->lock, flags);
++			ys->cnt = 0;
++			ys->usleep = MIN_YIELD_SLEEP;
++			ys->usleep_times = 0;
++			raw_spin_unlock_irqrestore(&ys->lock, flags);
++		}
++	}
++	partial_enable = PARTIAL_ENABLE_INIT;
++}
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_util_track.c b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_util_track.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/scx_util_track.c
+@@ -0,0 +1,580 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++
++#include "scx_main.h"
++#include "trace_sched_ext.h"
++
++static inline void window_rollover_systrace_c(void)
++{
++	char buf[256];
++	static unsigned long window_count;
++
++	window_count += 1;
++
++	snprintf(buf, sizeof(buf), "C|9999|scx_window_rollover|%lu\n", window_count%2);
++	scx_tracing_mark_write(buf);
++}
++
++static DEFINE_PER_CPU(u16, prev_cpu_util);
++static inline void cpu_util_update_systrace_c(int cpu)
++{
++	char buf[256];
++	u16 cpu_util = scx_cpu_util(cpu);
++
++	if(cpu_util != per_cpu(prev_cpu_util, cpu)) {
++		snprintf(buf, sizeof(buf), "C|9999|Cpu%d_util|%u\n",
++						cpu, cpu_util);
++		scx_tracing_mark_write(buf);
++		per_cpu(prev_cpu_util, cpu) = cpu_util;
++	}
++}
++
++/*Sysctl related interface*/
++#define WINDOW_STATS_RECENT		0
++#define WINDOW_STATS_MAX		1
++#define WINDOW_STATS_MAX_RECENT_AVG	2
++#define WINDOW_STATS_AVG		3
++#define WINDOW_STATS_INVALID_POLICY	4
++
++#define SCX_SCHED_CAPACITY_SHIFT  10
++#define SCHED_ACCOUNT_WAIT_TIME 0
++
++__read_mostly int scx_sched_ravg_window = 8000000;
++int new_scx_sched_ravg_window = 8000000;
++DEFINE_SPINLOCK(new_sched_ravg_window_lock);
++
++__read_mostly unsigned int scx_scale_demand_divisor;
++
++atomic64_t scx_run_rollover_lastq_ws;
++u64 tick_sched_clock;
++
++static int sched_window_stats_policy = WINDOW_STATS_MAX_RECENT_AVG;
++
++static inline void
++fixup_cumulative_runnable_avg(struct scx_entity *scx,
++					struct scx_dsq_stats *stats,
++					s64 demand_scaled_delta)
++{
++	struct scx_task_stats *sts = &scx->sts;
++	s64 cumulative_runnable_avg_scaled =
++		stats->cumulative_runnable_avg_scaled + demand_scaled_delta;
++
++	if (cumulative_runnable_avg_scaled < 0) {
++		SCX_BUG("on CPU %d task ds=%lu is higher than cra=%llu\n",
++				raw_smp_processor_id(), (unsigned long)sts->demand_scaled,
++				stats->cumulative_runnable_avg_scaled);
++		cumulative_runnable_avg_scaled = 0;
++	}
++	stats->cumulative_runnable_avg_scaled = (u64)cumulative_runnable_avg_scaled;
++}
++
++static void
++scx_inc_cumulative_runnable_avg(struct scx_entity *scx, struct task_struct *p, struct scx_dsq_stats *sds)
++{
++	struct scx_task_stats *sts = &scx->sts;
++	fixup_cumulative_runnable_avg(scx, sds, sts->demand_scaled);
++}
++
++static void
++scx_dec_cumulative_runnable_avg(struct scx_entity *scx, struct task_struct *p, struct scx_dsq_stats *sds)
++{
++	struct scx_task_stats *sts = &scx->sts;
++	fixup_cumulative_runnable_avg(scx, sds, -(s64)sts->demand_scaled);
++}
++
++static void	__maybe_unused
++cpu_load_systrace_c(int cpu, u64 cpu_load)
++{
++	char buf[256];
++	snprintf(buf, sizeof(buf), "C|9999|cpu%d_load|%llu\n", cpu, cpu_load);
++	scx_tracing_mark_write(buf);
++}
++
++
++void scx_trace_dispatch_enqueue(struct scx_entity *scx, struct task_struct *p, struct rq *rq)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	struct scx_dsq_stats *sds = &srq->local_dsq_s;
++	unsigned long cpu_load = 0;
++
++	scx_inc_cumulative_runnable_avg(scx, p, sds);
++	partial_load_ctrl(rq);
++
++	if (trace_scx_dispatch_enqueue_enabled())
++		cpu_load = scx_cpu_load(rq->cpu);
++
++	trace_scx_dispatch_enqueue(scx, rq, p, cpu_load);
++}
++
++void scx_trace_dispatch_dequeue(struct scx_entity *scx, struct task_struct *p, struct rq *rq)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	struct scx_dsq_stats *sds = &srq->local_dsq_s;
++	unsigned long cpu_load = 0;
++
++	scx_dec_cumulative_runnable_avg(scx, p, sds);
++
++	if (trace_scx_dispatch_dequeue_enabled())
++		cpu_load = scx_cpu_load(rq->cpu);
++
++	trace_scx_dispatch_dequeue(scx, rq, p, cpu_load);
++}
++
++inline u64 scale_exec_time(u64 delta, struct rq *rq)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++
++	return (delta * srq->task_exec_scale) >> SCX_SCHED_CAPACITY_SHIFT;
++}
++
++static u64 add_to_task_demand(struct scx_entity *scx, struct rq *rq, struct task_struct *p, u64 delta)
++{
++	struct scx_task_stats *sts = &scx->sts;
++
++	delta = scale_exec_time(delta, rq);
++	sts->sum += delta;
++	if (unlikely(sts->sum > scx_sched_ravg_window))
++		sts->sum = scx_sched_ravg_window;
++
++	return delta;
++}
++
++
++static int
++account_busy_for_task_demand(struct rq *rq, struct task_struct *p, int event)
++{
++	/*
++	 * No need to bother updating task demand for the idle task.
++	 */
++	if (is_idle_task(p))
++		return 0;
++
++	/*
++	 * When a task is waking up it is completing a segment of non-busy
++	 * time. Likewise, if wait time is not treated as busy time, then
++	 * when a task begins to run or is migrated, it is not running and
++	 * is completing a segment of non-busy time.
++	 */
++	if (event == TASK_WAKE || (!SCHED_ACCOUNT_WAIT_TIME &&
++				(event == PICK_NEXT_TASK || event == TASK_MIGRATE)))
++		return 0;
++
++	/*
++	 * The idle exit time is not accounted for the first task _picked_ up to
++	 * run on the idle CPU.
++	 */
++	if (event == PICK_NEXT_TASK && rq->curr == rq->idle)
++		return 0;
++
++	/*
++	 * TASK_UPDATE can be called on sleeping task, when its moved between
++	 * related groups
++	 */
++	if (event == TASK_UPDATE) {
++		if (rq->curr == p)
++			return 1;
++
++		return p->on_rq ? SCHED_ACCOUNT_WAIT_TIME : 0;
++	}
++
++	return 1;
++}
++
++
++static void rollover_cpu_window(struct rq *rq, bool full_window)
++{
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	u64 curr_sum = srq->curr_runnable_sum;
++
++	if (unlikely(full_window))
++		curr_sum = 0;
++
++	srq->prev_runnable_sum = curr_sum;
++	srq->curr_runnable_sum = 0;
++}
++
++static u64
++update_window_start(struct rq *rq, u64 wallclock)
++{
++	s64 delta;
++	int nr_windows;
++	bool full_window;
++
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	u64 old_window_start = srq->window_start;
++
++	if (wallclock < srq->latest_clock) {
++		SCX_BUG("on CPU%d; wallclock=%llu(0x%llx) is lesser than latest_clock=%llu(0x%llx)",
++			rq->cpu, wallclock, wallclock, srq->latest_clock,
++			srq->latest_clock);
++		wallclock = srq->latest_clock;
++	}
++	delta = wallclock - srq->window_start;
++	if (delta < 0) {
++		SCX_BUG("on CPU%d; wallclock=%llu(0x%llx) is lesser than window_start=%llu(0x%llx)",
++			rq->cpu, wallclock, wallclock,
++			srq->window_start, srq->window_start);
++		delta = 0;
++		wallclock = srq->window_start;
++	}
++	srq->latest_clock = wallclock;
++	if (delta < scx_sched_ravg_window)
++		return old_window_start;
++
++	nr_windows = div64_u64(delta, scx_sched_ravg_window);
++	srq->window_start += (u64)nr_windows * (u64)scx_sched_ravg_window;
++
++	srq->prev_window_size = scx_sched_ravg_window;
++	full_window = nr_windows > 1;
++	rollover_cpu_window(rq, full_window);
++
++	return old_window_start;
++}
++
++static inline unsigned int get_max_freq(unsigned int cpu)
++{
++	struct cpufreq_policy *policy = cpufreq_cpu_get_raw(cpu);
++
++	return (policy == NULL) ? 0 : policy->cpuinfo.max_freq;
++}
++
++static inline unsigned int cpu_cur_freq(int cpu)
++{
++	struct cpufreq_policy *policy = cpufreq_cpu_get_raw(cpu);
++
++	return (policy == NULL) ? 0 : policy->cur;
++}
++
++static void
++update_task_rq_cpu_cycles(struct task_struct *p, struct rq *rq, u64 wallclock)
++{
++	int cpu = cpu_of(rq);
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++
++	srq->task_exec_scale = DIV64_U64_ROUNDUP(cpu_cur_freq(cpu) *
++					arch_scale_cpu_capacity(cpu), get_max_freq(cpu));
++}
++
++/* real_runtime = sum_task_util * window_size / task_exec_scale */
++static inline u64 __maybe_unused
++calc_load_to_time(u64 task_exec_scale, u64 load)
++{
++	load = load * scx_sched_ravg_window;
++	do_div(load, task_exec_scale);
++	return load;
++}
++
++static inline void __maybe_unused
++task_util_update_systrace_c(struct scx_entity *scx, struct task_struct *p)
++{
++	char buf[256];
++	struct scx_task_stats *sts = &scx->sts;
++	snprintf(buf, sizeof(buf), "C|%d|Task%d_util|%u\n",
++			p->pid, p->pid, sts->demand_scaled);
++	scx_tracing_mark_write(buf);
++}
++
++/*
++ * Called when new window is starting for a task, to record cpu usage over
++ * recently concluded window(s). Normally 'samples' should be 1. It can be > 1
++ * when, say, a real-time task runs without preemption for several windows at a
++ * stretch.
++ */
++static void update_history(struct scx_entity *scx, struct rq *rq, struct task_struct *p,
++			 u32 runtime, int samples, int event)
++{
++	struct scx_task_stats *sts = &scx->sts;
++	u32 *hist = &sts->sum_history[0];
++	int i;
++	u32 max = 0, avg, demand;
++	u64 sum = 0;
++	u16 demand_scaled;
++	int samples_old = samples;
++
++	/* Ignore windows where task had no activity */
++	if (!runtime || is_idle_task(p) || !samples)
++		goto done;
++
++	/* Push new 'runtime' value onto stack */
++	for (; samples > 0; samples--) {
++		hist[sts->cidx] = runtime;
++		sts->cidx = ++(sts->cidx) % RAVG_HIST_SIZE;
++	}
++
++	for (i = 0; i < RAVG_HIST_SIZE; i++) {
++		sum += hist[i];
++		if (hist[i] > max)
++			max = hist[i];
++	}
++
++	sts->sum = 0;
++	avg = div64_u64(sum, RAVG_HIST_SIZE);
++
++	switch (sched_window_stats_policy) {
++	case WINDOW_STATS_RECENT:
++		demand = runtime;
++		break;
++	case WINDOW_STATS_MAX:
++		demand = max;
++		break;
++	case WINDOW_STATS_AVG:
++		demand = avg;
++		break;
++	default:
++		demand = max(avg, runtime);
++	}
++
++	demand_scaled = scx_scale_time_to_util(demand);
++
++	sts->demand = demand;
++	sts->demand_scaled = demand_scaled;
++
++done:
++	trace_scx_update_history(scx, rq, p, runtime, samples_old, event);
++	return;
++}
++
++
++static u64
++update_task_demand(struct scx_entity *scx, struct task_struct *p, struct rq *rq,
++			       int event, u64 wallclock)
++{
++	struct scx_task_stats *sts = &scx->sts;
++
++	u64 mark_start = sts->mark_start;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++
++
++	u64 delta, window_start = srq->window_start;
++	int new_window, nr_full_windows;
++	u32 window_size = scx_sched_ravg_window;
++	u64 runtime;
++
++	new_window = mark_start < window_start;
++	if (!account_busy_for_task_demand(rq, p, event)) {
++		if (new_window)
++			/*
++			 * If the time accounted isn't being accounted as
++			 * busy time, and a new window started, only the
++			 * previous window need be closed out with the
++			 * pre-existing demand. Multiple windows may have
++			 * elapsed, but since empty windows are dropped,
++			 * it is not necessary to account those.
++			 */
++			update_history(scx, rq, p, sts->sum, 1, event);
++		return 0;
++	}
++
++	if (!new_window) {
++		/*
++		 * The simple case - busy time contained within the existing
++		 * window.
++		 */
++		return add_to_task_demand(scx, rq, p, wallclock - mark_start);
++	}
++
++	/*
++	 * Busy time spans at least two windows. Temporarily rewind
++	 * window_start to first window boundary after mark_start.
++	 */
++	delta = window_start - mark_start;
++	nr_full_windows = div64_u64(delta, window_size);
++	window_start -= (u64)nr_full_windows * (u64)window_size;
++
++	/* Process (window_start - mark_start) first */
++	runtime = add_to_task_demand(scx, rq, p, window_start - mark_start);
++
++	/* Push new sample(s) into task's demand history */
++	update_history(scx, rq, p, sts->sum, 1, event);
++	if (nr_full_windows) {
++		u64 scaled_window = scale_exec_time(window_size, rq);
++
++		update_history(scx, rq, p, scaled_window, nr_full_windows, event);
++		runtime += nr_full_windows * scaled_window;
++	}
++
++	/*
++	 * Roll window_start back to current to process any remainder
++	 * in current window.
++	 */
++	window_start += (u64)nr_full_windows * (u64)window_size;
++
++	/* Process (wallclock - window_start) next */
++	mark_start = window_start;
++	runtime += add_to_task_demand(scx, rq, p, wallclock - mark_start);
++
++	return runtime;
++}
++
++static inline int account_busy_for_cpu_time(struct rq *rq, struct task_struct *p,
++				     int event)
++{
++	return !is_idle_task(p) && (event == PUT_PREV_TASK || event == TASK_UPDATE);
++}
++
++
++static void update_cpu_busy_time(struct scx_entity *scx, struct task_struct *p, struct rq *rq,
++				 int event, u64 wallclock)
++{
++	int new_window, full_window = 0;
++	struct scx_task_stats *sts = &scx->sts;
++	u64 mark_start = sts->mark_start;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	u64 window_start = srq->window_start;
++	u32 window_size = srq->prev_window_size;
++	u64 delta;
++	u64 *curr_runnable_sum = &srq->curr_runnable_sum;
++	u64 *prev_runnable_sum = &srq->prev_runnable_sum;
++
++	new_window = mark_start < window_start;
++	if (new_window)
++		full_window = (window_start - mark_start) >= window_size;
++
++
++	if (!account_busy_for_cpu_time(rq, p, event))
++		goto done;
++
++
++	if (!new_window) {
++		/*
++		 * account_busy_for_cpu_time() = 1 so busy time needs
++		 * to be accounted to the current window. No rollover
++		 * since we didn't start a new window. An example of this is
++		 * when a task starts execution and then sleeps within the
++		 * same window.
++		 */
++		delta = wallclock - mark_start;
++
++		delta = scale_exec_time(delta, rq);
++		*curr_runnable_sum += delta;
++
++		goto done;
++	}
++
++	/*
++	 * situations below this need window rollover,
++	 * Rollover of cpu counters (curr/prev_runnable_sum) should have already be done
++	 * in update_window_start()
++	 *
++	 * For task counters curr/prev_window[_cpu] are rolled over in the early part of
++	 * this function. If full_window(s) have expired and time since last update needs
++	 * to be accounted as busy time, set the prev to a complete window size time, else
++	 * add the prev window portion.
++	 *
++	 * For task curr counters a new window has begun, always assign
++	 */
++
++	/*
++	 * account_busy_for_cpu_time() = 1 so busy time needs
++	 * to be accounted to the current window. A new window
++	 * must have been started in udpate_window_start()
++	 * If any of these three above conditions are true
++	 * then this busy time can't be accounted as irqtime.
++	 *
++	 * Busy time for the idle task need not be accounted.
++	 *
++	 * An example of this would be a task that starts execution
++	 * and then sleeps once a new window has begun.
++	 */
++
++	/*
++	 * A full window hasn't elapsed, account partial
++	 * contribution to previous completed window.
++	 */
++
++	delta = full_window ? scale_exec_time(window_size, rq) :
++					scale_exec_time(window_start - mark_start, rq);
++
++	*prev_runnable_sum += delta;
++
++	/* Account piece of busy time in the current window. */
++	delta = scale_exec_time(wallclock - window_start, rq);
++	*curr_runnable_sum += delta;
++
++done:
++	if((dump_info & SCX_DEBUG_SYSTRACE) && new_window)
++		cpu_util_update_systrace_c(rq->cpu);
++}
++
++void scx_window_rollover_run_once(u64 old_window_start, struct rq *rq)
++{
++	u64 result;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	u64 new_window_start = srq->window_start;
++
++	if (old_window_start == new_window_start)
++		return;
++
++	result = atomic64_cmpxchg(&scx_run_rollover_lastq_ws, old_window_start, new_window_start);
++
++	if (result != old_window_start)
++		return;
++	run_scx_irq_work_rollover();
++	trace_scx_run_window_rollover(old_window_start, new_window_start);
++	if (dump_info & SCX_DEBUG_SYSTRACE)
++		window_rollover_systrace_c();
++}
++
++void scx_update_task_ravg(struct scx_entity *scx, struct task_struct *p, struct rq *rq, int event, u64 wallclock)
++{
++	struct scx_task_stats *sts = &scx->sts;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu_of(rq));
++	u64 old_window_start;
++
++	if(!scx_enabled_enter())
++		return;
++
++	if(!srq->window_start || sts->mark_start == wallclock)
++		goto exit;
++
++	scx_assert_rq_lock(rq);
++
++	old_window_start = update_window_start(rq, wallclock);
++
++	if(!sts->window_start)
++		sts->window_start = srq->window_start;
++
++	if(!sts->mark_start)
++		goto done;
++
++	update_task_rq_cpu_cycles(p, rq, wallclock);
++	update_task_demand(scx, p, rq, event, wallclock);
++	update_cpu_busy_time(scx, p, rq, event, wallclock);
++
++	sts->window_start = srq->window_start;
++
++done:
++	sts->mark_start = wallclock;
++
++	if (sts->mark_start > (sts->window_start + scx_sched_ravg_window))
++		SCX_BUG("CPU%d: %s task %s(%d)'s ms=%llu is ahead of ws=%llu by more than 1 window on rq=%d event=%d\n",
++			raw_smp_processor_id(), __func__, p->comm, p->pid,
++			sts->mark_start, sts->window_start, rq->cpu, event);
++
++	scx_window_rollover_run_once(old_window_start, rq);
++
++exit:
++	scx_enabled_exit();
++}
++
++u16 scx_cpu_util(int cpu)
++{
++	u64 prev_runnable_sum;
++	struct scx_sched_rq_stats *srq = &per_cpu(scx_sched_rq_stats, cpu);
++
++	prev_runnable_sum = srq->prev_runnable_sum;
++	do_div(prev_runnable_sum, srq->prev_window_size >> SCX_SCHED_CAPACITY_SHIFT);
++
++	return (u16)prev_runnable_sum;
++}
++
++void sched_ravg_window_change(int frame_per_sec)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&new_sched_ravg_window_lock, flags);
++	new_scx_sched_ravg_window = NSEC_PER_SEC / frame_per_sec;
++	spin_unlock_irqrestore(&new_sched_ravg_window_lock, flags);
++}
+diff --git a/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/trace_sched_ext.h b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/trace_sched_ext.h
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/hmbird_gki/trace_sched_ext.h
+@@ -0,0 +1,313 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM sched_ext
++
++#if !defined(_TRACE_SCHED_EXT_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_SCHED_EXT_H
++
++#include <linux/sched.h>
++#include <linux/types.h>
++#include <linux/tracepoint.h>
++
++#include "sched_ext.h"
++TRACE_EVENT(scx_update_history,
++
++	TP_PROTO(struct scx_entity *scx, struct rq *rq, struct task_struct *p, u32 runtime, int samples,
++			int event),
++
++	TP_ARGS(scx, rq, p, runtime, samples, event),
++
++	TP_STRUCT__entry(
++		__array(char,			comm, TASK_COMM_LEN)
++		__field(pid_t,			pid)
++		__field(unsigned int,		runtime)
++		__field(int,			samples)
++		__field(int,	event)
++		__field(unsigned int,		demand)
++		__array(u32,			hist, RAVG_HIST_SIZE)
++		__field(u16,			task_util)
++		__field(int,			cpu)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid		= p->pid;
++		__entry->runtime	= runtime;
++		__entry->samples	= samples;
++		__entry->event		= event;
++		__entry->demand		= scx->sts.demand;
++		memcpy(__entry->hist, scx->sts.sum_history,
++					RAVG_HIST_SIZE * sizeof(u32));
++		__entry->task_util		= scx->sts.demand_scaled,
++		__entry->cpu		= rq->cpu;),
++
++	TP_printk("comm=%s[%d]: runtime %u samples %d event %d demand %u (hist: %u %u %u %u %u) task_util %u cpu %d",
++		__entry->comm, __entry->pid,
++		__entry->runtime, __entry->samples,
++		__entry->event,
++		__entry->demand,
++		__entry->hist[0], __entry->hist[1],
++		__entry->hist[2], __entry->hist[3],
++		__entry->hist[4],
++		__entry->task_util,
++		__entry->cpu)
++);
++
++DECLARE_EVENT_CLASS(scx_dispatch_template,
++
++	TP_PROTO(struct scx_entity *scx, struct rq *rq, struct task_struct *p, unsigned long cpu_load),
++
++	TP_ARGS(scx, rq, p, cpu_load),
++
++	TP_STRUCT__entry(
++		__array(char,			comm, TASK_COMM_LEN)
++		__field(pid_t,			pid)
++		__field(int,			cpu)
++		__field(int,			dsq_idx)
++		__field(unsigned long,	cpu_load)
++		__field(u16,			task_util)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid		= p->pid;
++		__entry->cpu		= rq->cpu;
++		__entry->dsq_idx 	= scx->gdsq_idx;
++		__entry->cpu_load	= cpu_load;
++		__entry->task_util	= scx->sts.demand_scaled;),
++
++	TP_printk("comm=%s[%d]: cpu=%d[dsq_idx=%d], cpu_load=%lu, task_util=%hu",
++		__entry->comm, __entry->pid,
++		__entry->cpu, __entry->dsq_idx,
++		__entry->cpu_load,
++		__entry->task_util)
++);
++
++DEFINE_EVENT(scx_dispatch_template, scx_dispatch_enqueue,
++	TP_PROTO(struct scx_entity *scx, struct rq *rq, struct task_struct *p, unsigned long cpu_load),
++	TP_ARGS(scx, rq, p, cpu_load));
++
++DEFINE_EVENT(scx_dispatch_template, scx_dispatch_dequeue,
++	TP_PROTO(struct scx_entity *scx, struct rq *rq, struct task_struct *p, unsigned long cpu_load),
++	TP_ARGS(scx, rq, p, cpu_load));
++
++TRACE_EVENT(scx_run_window_rollover,
++
++	TP_PROTO(u64 old_window_start, u64 new_window_start),
++
++	TP_ARGS(old_window_start, new_window_start),
++
++	TP_STRUCT__entry(
++		__field(u64,			old_window_start)
++		__field(u64,			new_window_start)
++		__field(int,			cpu)),
++
++	TP_fast_assign(
++		__entry->old_window_start		= old_window_start;
++		__entry->new_window_start		= new_window_start;
++		__entry->cpu 					= raw_smp_processor_id();),
++
++	TP_printk("old_window_start=%llu new_window_start=%llu cpu=%d",
++		__entry->old_window_start, __entry->new_window_start,
++		__entry->cpu)
++);
++
++TRACE_EVENT(scx_update_dsq_timeout,
++
++	TP_PROTO(struct task_struct *p, struct scx_dispatch_q *dsq, u64 runnable_at,
++			u64 deadline, u64 duration, bool force_update),
++
++	TP_ARGS(p, dsq, runnable_at, deadline, duration, force_update),
++
++	TP_STRUCT__entry(
++		__array(char,			comm, TASK_COMM_LEN)
++		__field(pid_t,			pid)
++		__field(u64,		runnable_at)
++		__field(u64,		deadline)
++		__field(u64,		duration)
++		__field(int,			cpu)
++		__field(bool,			is_timeout)
++		__field(bool,			force)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid		= p->pid;
++		__entry->runnable_at	= runnable_at;
++		__entry->deadline	= deadline;
++		__entry->duration		= duration;
++		__entry->cpu		= dsq->cpu;
++		__entry->is_timeout		= dsq->is_timeout;
++		__entry->force		= force_update;),
++
++	TP_printk("comm=%s[%d]: runnable_at=%llu deadline=%llu, duration=%llu, cpu=%d, timeout=%d, force=%d",
++		__entry->comm, __entry->pid,
++		__entry->runnable_at, __entry->deadline,
++		__entry->duration, __entry->cpu,
++		__entry->is_timeout, __entry->force)
++);
++
++
++TRACE_EVENT(scx_consume_dsq,
++
++	TP_PROTO(struct rq *rq, struct task_struct *p, struct scx_dispatch_q *dsq, u64 runnable_at, int balance_cpu),
++
++	TP_ARGS(rq, p, dsq, runnable_at, balance_cpu),
++
++	TP_STRUCT__entry(
++		__array(char,			comm, TASK_COMM_LEN)
++		__field(pid_t,			pid)
++		__field(u64,			runnable_at)
++		__field(int,			dsq_idx)
++		__field(u64,			deadline)
++		__field(u64,			duration)
++		__field(int,			cpu)
++		__field(int,			balance_cpu)
++		__field(bool,			is_timeout)
++		__field(int, 			dsqs)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid		= p->pid;
++		__entry->runnable_at	= runnable_at;
++		__entry->dsq_idx	= dsq->idx;
++		__entry->deadline	= msecs_to_jiffies(SCX_BPF_DSQS_DEADLINE[dsq->idx]);
++		__entry->duration		= jiffies - runnable_at;
++		__entry->cpu		= rq->cpu;
++		__entry->balance_cpu		= balance_cpu;
++		__entry->is_timeout		= dsq->is_timeout;
++		__entry->dsqs		= per_cpu(dsqs_map, rq->cpu);),
++
++	TP_printk("comm=%s[%d]: runnable_at=%llu, dsq_idx=%d, deadline=%llu, duration=%llu, cpu=%d, balance_cpu=%d, timeout=%d, dsqs=0x%x",
++		__entry->comm, __entry->pid,
++		__entry->runnable_at, __entry->dsq_idx,
++		__entry->deadline, __entry->duration,
++		__entry->cpu, __entry->balance_cpu,
++		__entry->is_timeout, __entry->dsqs)
++);
++
++TRACE_EVENT(scx_newidle_balance,
++
++	TP_PROTO(int this_cpu, int this_nr_period_tasks,
++			int src_cpu, int src_nr_period_tasks_prev, int src_nr_period_tasks_now,
++			u64 cpu_load_prev, u64 cpu_load_now,
++			struct task_struct *pulled_task),
++
++	TP_ARGS(this_cpu, this_nr_period_tasks, src_cpu, src_nr_period_tasks_prev, src_nr_period_tasks_now,
++			cpu_load_prev, cpu_load_now, pulled_task),
++
++	TP_STRUCT__entry(
++		__field(int, 	this_cpu)
++		__field(int, 	this_nr_period_tasks)
++		__field(int, 	src_cpu)
++		__field(int, 	src_nr_period_tasks_prev)
++		__field(int, 	src_nr_period_tasks_now)
++		__field(u64, 	cpu_load_prev)
++		__field(u64, 	cpu_load_now)
++		__array(char,	comm, TASK_COMM_LEN)
++		__field(pid_t,	pid)),
++
++	TP_fast_assign(
++		__entry->this_cpu					= this_cpu;
++		__entry->this_nr_period_tasks		= this_nr_period_tasks;
++		__entry->src_cpu					= src_cpu;
++		__entry->src_nr_period_tasks_prev	= src_nr_period_tasks_prev;
++		__entry->src_nr_period_tasks_now	= src_nr_period_tasks_now;
++		__entry->cpu_load_prev				= cpu_load_prev;
++		__entry->cpu_load_now				= cpu_load_now;
++		memcpy(__entry->comm, pulled_task->comm, TASK_COMM_LEN);
++		__entry->pid						= pulled_task->pid;),
++
++	TP_printk("this_cpu=%d, nr_period_tasks=%d, src_cpu=%d, nr_period_tasks_prev=%d,"
++				"nr_period_tasks_now=%d, cpu_load_prev=%llu, cpu_load_now=%llu, pulled_task=%s[%d]",
++			__entry->this_cpu, __entry->this_nr_period_tasks, __entry->src_cpu,
++			__entry->src_nr_period_tasks_prev, __entry->src_nr_period_tasks_now,
++			__entry->cpu_load_prev, __entry->cpu_load_now,
++			__entry->comm, __entry->pid)
++);
++
++DECLARE_EVENT_CLASS(scx_find_target_cpu_template,
++
++	TP_PROTO(struct task_struct *p, int best_cpu, int fastpath, struct cpumask *allowed_mask,
++			int partial_enable, int dsq_idx),
++
++	TP_ARGS(p, best_cpu, fastpath, allowed_mask, partial_enable, dsq_idx),
++
++	TP_STRUCT__entry(
++		__array(char,	comm, TASK_COMM_LEN)
++		__field(pid_t,	pid)
++		__field(int, 	best_cpu)
++		__field(int, 	fastpath)
++		__field(int, 	task_cpus)
++		__field(int, 	allowed_mask)
++		__field(int, 	partial_enable)
++		__field(int, 	dsq_idx)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid						= p->pid;
++		__entry->best_cpu					= best_cpu;
++		__entry->fastpath					= fastpath;
++		__entry->task_cpus					= cpumask_bits(p->cpus_ptr)[0];
++		__entry->allowed_mask				= cpumask_bits(allowed_mask)[0];
++		__entry->partial_enable				= partial_enable;
++		__entry->dsq_idx					= dsq_idx;),
++
++	TP_printk("comm=%s[%d], best_cpu=%d, fastpath=%d, cpu_allows=0x%x, allowed_mask=0x%x, partial_enable=%d, dsq_idx=%d",
++			__entry->comm, __entry->pid, __entry->best_cpu,
++			__entry->fastpath, __entry->task_cpus,
++			__entry->allowed_mask, __entry->partial_enable,
++			__entry->dsq_idx)
++);
++
++DEFINE_EVENT(scx_find_target_cpu_template, scx_find_target_cpu_fair,
++	TP_PROTO(struct task_struct *p, int best_cpu, int fastpath, struct cpumask *allowed_mask,
++			int partial_enable, int dsq_idx),
++	TP_ARGS(p, best_cpu, fastpath, allowed_mask, partial_enable, dsq_idx));
++
++DEFINE_EVENT(scx_find_target_cpu_template, scx_find_target_cpu_rt,
++	TP_PROTO(struct task_struct *p, int best_cpu, int fastpath, struct cpumask *allowed_mask,
++			int partial_enable, int dsq_idx),
++	TP_ARGS(p, best_cpu, fastpath, allowed_mask, partial_enable, dsq_idx));
++
++TRACE_EVENT(scx_cfs_check_preempt_wakeup,
++
++	TP_PROTO(struct task_struct *p, int p_idx, struct task_struct *curr, int curr_idx, int reason, int preempt),
++
++	TP_ARGS(p, p_idx, curr, curr_idx, reason, preempt),
++
++	TP_STRUCT__entry(
++		__array(char,	comm, TASK_COMM_LEN)
++		__field(pid_t,	pid)
++		__field(int, 	p_idx)
++		__array(char,	curr_comm, TASK_COMM_LEN)
++		__field(pid_t,	curr_pid)
++		__field(int, 	curr_idx)
++		__field(int, 	reason)
++		__field(int, 	preempt)),
++
++	TP_fast_assign(
++		memcpy(__entry->comm, p->comm, TASK_COMM_LEN);
++		__entry->pid					= p->pid;
++		__entry->p_idx					= p_idx;
++		memcpy(__entry->curr_comm, curr->comm, TASK_COMM_LEN);
++		__entry->curr_pid					= curr->pid;
++		__entry->curr_idx				= curr_idx;
++		__entry->reason					= reason;
++		__entry->preempt				= preempt;),
++
++	TP_printk("preempt=%d, reason=%d, curr=%s[%d][idx=%d], p=%s[%d][idx=%d]",
++			__entry->preempt, __entry->reason,
++			__entry->curr_comm, __entry->curr_pid, __entry->curr_idx,
++			__entry->comm, __entry->pid, __entry->p_idx)
++);
++
++#endif /*_TRACE_SCHED_EXT_H */
++
++#undef TRACE_INCLUDE_PATH
++#define TRACE_INCLUDE_PATH ../drivers/lunar/lunar_oplus_features/sched_ext/hmbird_gki
++
++#undef TRACE_INCLUDE_FILE
++#define TRACE_INCLUDE_FILE trace_sched_ext
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff --git a/kernel/sched/lunar_bsp_sched_ext/main.c b/kernel/sched/lunar_bsp_sched_ext/main.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/main.c
+@@ -0,0 +1,27 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#include <linux/sched.h>
++#include <linux/init.h>
++#include <linux/types.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++
++extern int scx_init(void);
++extern void scx_exit(void);
++
++static int __init hmbird_common_init(void)
++{
++	scx_init();
++	return 0;
++}
++
++static void __exit hmbird_common_exit(void)
++{
++	scx_exit();
++}
++
++module_init(hmbird_common_init);
++module_exit(hmbird_common_exit);
++MODULE_LICENSE("GPL v2");
+diff --git a/kernel/sched/lunar_bsp_sched_ext/scx_shadow_tick.c b/kernel/sched/lunar_bsp_sched_ext/scx_shadow_tick.c
+new file mode 100644
+--- /dev/null
++++ b/kernel/sched/lunar_bsp_sched_ext/scx_shadow_tick.c
+@@ -0,0 +1,128 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2024 Oplus. All rights reserved.
++ */
++#include <linux/tick.h>
++#include <../kernel/time/tick-sched.h>
++#include <trace/hooks/sched.h>
++
++#include "./hmbird_gki/scx_main.h"
++
++#define HIGHRES_WATCH_CPU       0
++static inline bool shadow_tick_enable(void)
++{
++	return false;
++}
++static inline bool shadow_tick_dbg_enable(void) {return false;}
++
++#define REGISTER_TRACE_VH(vender_hook, handler) \
++{ \
++	ret = register_trace_##vender_hook(handler, NULL); \
++	if (ret) { \
++			pr_err("failed to register_trace_"#vender_hook", ret=%d\n", ret); \
++	} \
++}
++
++#define NUM_SHADOW_TICK_TIMER (3)
++DEFINE_PER_CPU(struct hrtimer[NUM_SHADOW_TICK_TIMER], stt);
++#define shadow_tick_timer(cpu, id) (&per_cpu(stt[id], (cpu)))
++
++#define STOP_IDLE_TRIGGER     (1)
++#define PERIODIC_TICK_TRIGGER (2)
++static DEFINE_PER_CPU(u8, trigger_event);
++
++void sched_switch_handler(void *data, bool preempt, struct task_struct *prev,
++		struct task_struct *next)
++{
++	int i, cpu = smp_processor_id();
++
++	if (shadow_tick_enable() && (cpu_rq(cpu)->idle == prev)) {
++		this_cpu_write(trigger_event, STOP_IDLE_TRIGGER);
++		for (i = 0; i < NUM_SHADOW_TICK_TIMER; i++) {
++			if (!hrtimer_active(shadow_tick_timer(cpu, i)))
++				hrtimer_start(shadow_tick_timer(cpu, i),
++					ns_to_ktime(1000000ULL * (i + 1)), HRTIMER_MODE_REL);
++		}
++		if (shadow_tick_dbg_enable() && cpu == HIGHRES_WATCH_CPU)
++			trace_printk("hmbird_sched : enter tick triggered by stop_idle events\n");
++	}
++}
++
++enum hrtimer_restart scheduler_tick_no_balance(struct hrtimer *timer)
++{
++	int cpu = smp_processor_id();
++	struct rq *rq = cpu_rq(cpu);
++	struct task_struct *curr = rq->curr;
++	struct rq_flags rf;
++
++	rq_lock(rq, &rf);
++	update_rq_clock(rq);
++	scx_tick_entry(rq);
++	curr->sched_class->task_tick(rq, curr, 0);
++	if (shadow_tick_dbg_enable() && cpu == HIGHRES_WATCH_CPU)
++		trace_printk("hmbird_sched : enter tick\n");
++	rq_unlock(rq, &rf);
++	scx_scheduler_tick();
++	return HRTIMER_NORESTART;
++}
++
++void shadow_tick_timer_init(void)
++{
++	int i, cpu;
++
++	for_each_possible_cpu(cpu) {
++		for (i = 0; i < NUM_SHADOW_TICK_TIMER; i++) {
++			hrtimer_init(shadow_tick_timer(cpu, i),
++				     CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++			shadow_tick_timer(cpu, i)->function = &scheduler_tick_no_balance;
++		}
++	}
++}
++
++void start_shadow_tick_timer(void)
++{
++	int i, cpu = smp_processor_id();
++
++	if (shadow_tick_enable()) {
++		if (this_cpu_read(trigger_event) == STOP_IDLE_TRIGGER) {
++			for (i = 0; i < NUM_SHADOW_TICK_TIMER; i++)
++				hrtimer_cancel(shadow_tick_timer(cpu, i));
++		}
++
++		this_cpu_write(trigger_event, PERIODIC_TICK_TRIGGER);
++
++		for (i = 0; i < NUM_SHADOW_TICK_TIMER; i++) {
++			if (!hrtimer_active(shadow_tick_timer(cpu, i)))
++				hrtimer_start(shadow_tick_timer(cpu, i),
++								ns_to_ktime(1000000ULL * (i + 1)), HRTIMER_MODE_REL);
++			if (shadow_tick_dbg_enable() && cpu == HIGHRES_WATCH_CPU)
++				trace_printk("hmbird_sched : restart tick\n");
++		}
++	}
++}
++
++static void stop_shadow_tick_timer(void)
++{
++	int i, cpu = smp_processor_id();
++
++	this_cpu_write(trigger_event, 0);
++	for (i = 0; i < NUM_SHADOW_TICK_TIMER; i++)
++		hrtimer_cancel(shadow_tick_timer(cpu, i));
++	if (shadow_tick_dbg_enable() && cpu == HIGHRES_WATCH_CPU)
++		trace_printk("hmbird_sched : stop tick\n");
++}
++
++void android_vh_tick_nohz_idle_stop_tick_handler(void *unused, void *data)
++{
++	stop_shadow_tick_timer();
++}
++
++int scx_shadow_tick_init(void)
++{
++	int ret = 0;
++	shadow_tick_timer_init();
++
++	REGISTER_TRACE_VH(android_vh_tick_nohz_idle_stop_tick, android_vh_tick_nohz_idle_stop_tick_handler);
++	REGISTER_TRACE_VH(sched_switch, sched_switch_handler);
++	return ret;
++}
+diff --git a/kernel/sched/vendor_hooks.c b/kernel/sched/vendor_hooks.c
+--- a/kernel/sched/vendor_hooks.c
++++ b/kernel/sched/vendor_hooks.c
+@@ -99,6 +99,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_check_preempt_wakeup);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_cpus_allowed_ptr_locked);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_cpus_allowed_by_task);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_sched_yield);
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_before_do_sched_yield);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_free_task);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_irqtime_account_process_tick);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sched_pelt_multiplier);
+@@ -125,6 +126,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_dup_task_struct);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_account_task_time);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_cpus_allowed_comm);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sched_setaffinity_early);
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_tick_nohz_idle_stop_tick);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_update_rt_rq_load_avg);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_set_task_comm);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_mmput);
+diff --git a/kernel/time/tick-sched.c b/kernel/time/tick-sched.c
+--- a/kernel/time/tick-sched.c
++++ b/kernel/time/tick-sched.c
+@@ -1122,6 +1122,7 @@ static void __tick_nohz_idle_stop_tick(struct tick_sched *ts)
+  */
+ void tick_nohz_idle_stop_tick(void)
+ {
++	trace_android_vh_tick_nohz_idle_stop_tick(NULL);
+ 	__tick_nohz_idle_stop_tick(this_cpu_ptr(&tick_cpu_sched));
+ }
+ 
