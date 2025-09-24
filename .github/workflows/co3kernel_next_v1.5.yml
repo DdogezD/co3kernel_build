@@ -118,11 +118,6 @@ jobs:
           patch -p1 < vmalloc5.patch || true
           patch -p1 < vmalloc6.patch || true
           patch -p1 < vmalloc7.patch || true
-
-      - name: Add SCX
-        run: |
-          cd kernel_workspace/kernel_platform/msm-kernel
-          cp ../../co3kernel_build/zram/BadOpts/scx.patch ./
           patch -p1 < scx.patch || true
           rm -rf kernel_workspace/co3kernel_build
 
