@@ -45,7 +45,6 @@
   - memcpy
   - memmove
   - memset
-  - memcmp
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: PELT 半衰期 32ms 减少到 16ms
 - 优化 DynamIQ Shared Unit
