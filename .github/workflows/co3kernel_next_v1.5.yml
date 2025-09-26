@@ -79,7 +79,7 @@ jobs:
           patch -p1 < ashmem_rewrite.patch || true
           patch -p1 < ashmem_shmem_set_file.patch || true
           patch -p1 < ashmem_keep_kmi.patch || true
-          patch -p1 < opt_memcmp.patch || true
+          #patch -p1 < opt_memcmp.patch || true
           patch -p1 < opt_memutil.patch || true
           patch -p1 < opt_memcpy.patch || true
           patch -p1 < opt_memmove.patch || true
