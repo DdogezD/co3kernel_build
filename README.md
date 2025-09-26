@@ -1,14 +1,14 @@
 # CO³Kernel 
-**Custom OnePlus Open Optimized Kernel**
+*Custom OnePlus Open Optimized Kernel*
 
 这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
 
 合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交, 排名不分先后。
 
-## ❤ 特别感谢
+## 特别感谢
 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导
 
-**🏁 特性**
+**特性**
 -
 
 ⚙️ 伪装官方内核 uname (latest NA)
@@ -40,20 +40,21 @@
 - cpuidle: 去除 menu 的 iowait
 - sched idle loop 中省略多余的获取内存屏障
 - ttwu 流程中省略多余的获取内存屏障
-- vmalloc: backport 上游更新
 - 重写的 ashmem
 - 优化的 mem*
   - memcpy
   - memmove
   - memset
+  - memcmp
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: PELT 半衰期 32ms 减少到 16ms
 - 优化 DynamIQ Shared Unit
   - fair: 减少任务迁移开销
   - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
+- fs: 对齐 8b
 
-🧩 CO³Kernel 附加模块
+CO³Kernel 附加模块
 -
 
 - 配置 I/O 调速器为 none
