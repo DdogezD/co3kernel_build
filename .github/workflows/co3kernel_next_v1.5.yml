@@ -72,24 +72,26 @@ jobs:
           patch -p1 < opt_for_a510.patch || true
           patch -p1 < polly1.patch || true
           patch -p1 < polly2.patch || true
-          #patch -p1 < lazy_RCU.patch || true
+          patch -p1 < lazy_RCU.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
-          #patch -p1 < xiaomi_zram_opt.patch || true
-          #patch -p1 < ashmem_rewrite.patch || true
-          #patch -p1 < ashmem_shmem_set_file.patch || true
-          #patch -p1 < ashmem_keep_kmi.patch || true
-          #patch -p1 < opt_memutil.patch || true
-          #patch -p1 < opt_memcpy.patch || true
-          #patch -p1 < opt_memmove.patch || true
-          #patch -p1 < opt_memset.patch || true
+          patch -p1 < xiaomi_zram_opt.patch || true
+          patch -p1 < ashmem_rewrite.patch || true
+          patch -p1 < ashmem_shmem_set_file.patch || true
+          patch -p1 < ashmem_keep_kmi.patch || true
+          patch -p1 < opt_memcmp.patch || true
+          patch -p1 < opt_memutil.patch || true
+          patch -p1 < opt_memcpy.patch || true
+          patch -p1 < opt_memmove.patch || true
+          patch -p1 < opt_memset.patch || true
           #patch -p1 < cpuidle_dont_rtn.patch || true
           #patch -p1 < cpuidle_rej_entry.patch || true
           patch -p1 < mm_dont_reserve.patch || true
           patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
           patch -p1 < less_migra_cost.patch || true
           patch -p1 < fair_pelt_16ms.patch || true
-          #patch -p1 < fs_reduce_cache.patch || true
+          patch -p1 < fs_reduce_cache.patch || true
+          patch -p1 < fs_ali_8b.patch || true
           patch -p1 < selinux_rm_audit_deps.patch || true
           patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
           patch -p1 < blk_disable_iostats.patch || true
