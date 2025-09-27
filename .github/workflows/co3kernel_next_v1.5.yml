@@ -76,14 +76,14 @@ jobs:
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
-          patch -p1 < arm64_cleanup_sym_alias.patch || true
-          patch -p1 < opt_memcmp.patch || true
+          #patch -p1 < arm64_cleanup_sym_alias.patch || true
+          #patch -p1 < opt_memcmp.patch || true
           patch -p1 < opt_memutil.patch || true
           patch -p1 < opt_memcpy.patch || true
           patch -p1 < opt_memmove.patch || true
           patch -p1 < opt_memset.patch || true
-          #patch -p1 < cpuidle_dont_rtn.patch || true
-          #patch -p1 < cpuidle_rej_entry.patch || true
+          patch -p1 < cpuidle_dont_rtn.patch || true
+          patch -p1 < cpuidle_rej_entry.patch || true
           patch -p1 < mm_dont_reserve.patch || true
           patch -p1 < disable_CACHE_HOT_BUDDY.patch || true
           patch -p1 < less_migra_cost.patch || true
@@ -94,20 +94,20 @@ jobs:
           patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
           patch -p1 < blk_disable_iostats.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
-          #patch -p1 < idle_mem_barrier.patch || true
-          #patch -p1 < skip_barrier_ttwu.patch || true
+          patch -p1 < idle_mem_barrier.patch || true
+          patch -p1 < skip_barrier_ttwu.patch || true
           patch -p1 < clear_page_ali_16b.patch || true
-          #patch -p1 < teo_avoid_stop_tick.patch || true
-          #patch -p1 < teo_do_not_call.patch || true
-          #patch -p1 < teo_skip_call.patch || true
-          #patch -p1 < teo_gather_stats.patch || true
-          #patch -p1 < teo_avoid_assign.patch || true
-          #patch -p1 < teo_rm_recent_interc.patch || true
-          #patch -p1 < teo_dont_count_non_ex.patch || true
-          #patch -p1 < menu_skip_tick_nohz.patch || true
-          #patch -p1 < menu_cleanup.patch || true
-          #patch -p1 < menu_fix_typo.patch || true
-          #patch -p1 < menu_rm_iowait_influ.patch || true
+          patch -p1 < teo_avoid_stop_tick.patch || true
+          patch -p1 < teo_do_not_call.patch || true
+          patch -p1 < teo_skip_call.patch || true
+          patch -p1 < teo_gather_stats.patch || true
+          patch -p1 < teo_avoid_assign.patch || true
+          patch -p1 < teo_rm_recent_interc.patch || true
+          patch -p1 < teo_dont_count_non_ex.patch || true
+          patch -p1 < menu_skip_tick_nohz.patch || true
+          patch -p1 < menu_cleanup.patch || true
+          patch -p1 < menu_fix_typo.patch || true
+          patch -p1 < menu_rm_iowait_influ.patch || true
           patch -p1 < drm_allow_null.patch || true
           patch -p1 < no_drm_dbg.patch || true
           patch -p1 < no_psi_dbg.patch || true
