@@ -3,7 +3,7 @@
 
 这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
 
-合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem, Cloud_Yun** 等内核开发者的提交, 排名不分先后。
+合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem** 等内核开发者的提交, 排名不分先后。
 
 ## 特别感谢
 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导
