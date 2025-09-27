@@ -11,8 +11,6 @@
 **特性**
 -
 
-⚙️ 伪装官方内核 uname (latest NA)
-
 ⚙️ KernelSU Scope Minimized Hooks: v1.5
 
 ⚙️ KernelSU Next: v1.1.0
@@ -40,7 +38,6 @@
 - cpuidle: 去除 menu 的 iowait
 - sched idle loop 中省略多余的获取内存屏障
 - ttwu 流程中省略多余的获取内存屏障
-- 重写的 ashmem
 - 优化的 mem*
   - memcpy
   - memmove
