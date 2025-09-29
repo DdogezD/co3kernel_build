@@ -75,6 +75,7 @@ jobs:
           patch -p1 < lazy_RCU.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
+          patch -p1 < nintendo_ff_support.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
           #patch -p1 < opt_memutil.patch || true
           patch -p1 < opt_memcpy.patch || true
@@ -139,6 +140,9 @@ jobs:
           echo 'CONFIG_LLVM_POLLY=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_JOYSTICK_XPAD_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_JOYSTICK_XPAD_LEDS=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NINTENDO_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
