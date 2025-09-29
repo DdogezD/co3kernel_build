@@ -1,0 +1,72 @@
+From da7e2128b869a1315b8919ded42b799076279cda Mon Sep 17 00:00:00 2001
+From: Santosh De Massari <s.demassari@gmail.com>
+Date: Thu, 18 Aug 2022 17:44:10 +0200
+Subject: [PATCH] Input: xpad - Poweroff XBOX360W on mode button long press
+
+Newer gamepads turn themselves off when the mode button is held down.
+For XBOX360W gamepads we must do this in the driver.
+
+Do not use BIT() macro for consistency within the file.
+
+Signed-off-by: Santosh De Massari <s.demassari@gmail.com>
+Signed-off-by: Pavel Rojtberg <rojtberg@gmail.com>
+Link: https://lore.kernel.org/r/20220818154411.510308-4-rojtberg@gmail.com
+Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+---
+ drivers/input/joystick/xpad.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/drivers/input/joystick/xpad.c b/drivers/input/joystick/xpad.c
+index 3da5fd5b5aaf4..d770221709c08 100644
+--- a/drivers/input/joystick/xpad.c
++++ b/drivers/input/joystick/xpad.c
+@@ -89,6 +89,11 @@
+ #define XTYPE_XBOXONE     3
+ #define XTYPE_UNKNOWN     4
+ 
++/* Send power-off packet to xpad360w after holding the mode button for this many
++ * seconds
++ */
++#define XPAD360W_POWEROFF_TIMEOUT 5
++
+ static bool dpad_to_buttons;
+ module_param(dpad_to_buttons, bool, S_IRUGO);
+ MODULE_PARM_DESC(dpad_to_buttons, "Map D-PAD to buttons rather than axes for unknown pads");
+@@ -630,11 +635,13 @@ struct usb_xpad {
+ 	int pad_nr;			/* the order x360 pads were attached */
+ 	const char *name;		/* name of the device */
+ 	struct work_struct work;	/* init/remove device from callback */
++	time64_t mode_btn_down_ts;
+ };
+ 
+ static int xpad_init_input(struct usb_xpad *xpad);
+ static void xpad_deinit_input(struct usb_xpad *xpad);
+ static void xpadone_ack_mode_report(struct usb_xpad *xpad, u8 seq_num);
++static void xpad360w_poweroff_controller(struct usb_xpad *xpad);
+ 
+ /*
+  *	xpad_process_packet
+@@ -786,6 +793,23 @@ static void xpad360_process_packet(struct usb_xpad *xpad, struct input_dev *dev,
+ 	}
+ 
+ 	input_sync(dev);
++
++	/* XBOX360W controllers can't be turned off without driver assistance */
++	if (xpad->xtype == XTYPE_XBOX360W) {
++		if (xpad->mode_btn_down_ts > 0 && xpad->pad_present &&
++		    ((ktime_get_seconds() - xpad->mode_btn_down_ts) >=
++		     XPAD360W_POWEROFF_TIMEOUT)) {
++			xpad360w_poweroff_controller(xpad);
++			xpad->mode_btn_down_ts = 0;
++			return;
++		}
++
++		/* mode button down/up */
++		if (data[3] & 0x04)
++			xpad->mode_btn_down_ts = ktime_get_seconds();
++		else
++			xpad->mode_btn_down_ts = 0;
++	}
+ }
+ 
+ static void xpad_presence_work(struct work_struct *work)
