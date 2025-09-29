@@ -1,0 +1,75 @@
+From 1260cd04a601e0e02e09fa332111b8639611970d Mon Sep 17 00:00:00 2001
+From: Nate Yocom <nate@yocom.org>
+Date: Wed, 28 Sep 2022 18:23:22 -0700
+Subject: [PATCH] Input: add ABS_PROFILE to uapi and documentation
+
+Define new ABS_PROFILE axis for input devices which need it, e.g. X-Box
+Adaptive Controller and X-Box Elite 2.
+
+Signed-off-by: Nate Yocom <nate@yocom.org>
+Link: https://lore.kernel.org/r/20220908173930.28940-4-nate@yocom.org
+Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+---
+ Documentation/input/event-codes.rst    | 6 ++++++
+ Documentation/input/gamepad.rst        | 6 ++++++
+ drivers/hid/hid-debug.c                | 3 ++-
+ include/uapi/linux/input-event-codes.h | 1 +
+ 4 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/input/event-codes.rst b/Documentation/input/event-codes.rst
+index 8741d390b1843..b4557462edd7b 100644
+--- a/Documentation/input/event-codes.rst
++++ b/Documentation/input/event-codes.rst
+@@ -235,6 +235,12 @@ A few EV_ABS codes have special meanings:
+     BTN_TOOL_<name> signals the type of tool that is currently detected by the
+     hardware and is otherwise independent of ABS_DISTANCE and/or BTN_TOUCH.
+ 
++* ABS_PROFILE:
++
++  - Used to describe the state of a multi-value profile switch.  An event is
++    emitted only when the selected profile changes, indicating the newly
++    selected profile value.
++
+ * ABS_MT_<name>:
+ 
+   - Used to describe multitouch input events. Please see
+diff --git a/Documentation/input/gamepad.rst b/Documentation/input/gamepad.rst
+index 4d5e7fb80a845..71019de460367 100644
+--- a/Documentation/input/gamepad.rst
++++ b/Documentation/input/gamepad.rst
+@@ -189,3 +189,9 @@ Gamepads report the following events:
+ - Rumble:
+ 
+   Rumble is advertised as FF_RUMBLE.
++
++- Profile:
++
++  Some pads provide a multi-value profile selection switch.  An example is the
++  XBox Adaptive and the XBox Elite 2 controllers.  When the active profile is
++  switched, its newly selected value is emitted as an ABS_PROFILE event.
+diff --git a/drivers/hid/hid-debug.c b/drivers/hid/hid-debug.c
+index 81e7e404a5fce..2ca6ab600bc9f 100644
+--- a/drivers/hid/hid-debug.c
++++ b/drivers/hid/hid-debug.c
+@@ -1014,7 +1014,8 @@ static const char *absolutes[ABS_CNT] = {
+ 	[ABS_HAT3Y] = "Hat 3Y",		[ABS_PRESSURE] = "Pressure",
+ 	[ABS_DISTANCE] = "Distance",	[ABS_TILT_X] = "XTilt",
+ 	[ABS_TILT_Y] = "YTilt",		[ABS_TOOL_WIDTH] = "ToolWidth",
+-	[ABS_VOLUME] = "Volume",	[ABS_MISC] = "Misc",
++	[ABS_VOLUME] = "Volume",	[ABS_PROFILE] = "Profile",
++	[ABS_MISC] = "Misc",
+ 	[ABS_MT_TOUCH_MAJOR] = "MTMajor",
+ 	[ABS_MT_TOUCH_MINOR] = "MTMinor",
+ 	[ABS_MT_WIDTH_MAJOR] = "MTMajorW",
+diff --git a/include/uapi/linux/input-event-codes.h b/include/uapi/linux/input-event-codes.h
+index dff8e7f170748..7ad931a329706 100644
+--- a/include/uapi/linux/input-event-codes.h
++++ b/include/uapi/linux/input-event-codes.h
+@@ -862,6 +862,7 @@
+ #define ABS_TOOL_WIDTH		0x1c
+ 
+ #define ABS_VOLUME		0x20
++#define ABS_PROFILE		0x21
+ 
+ #define ABS_MISC		0x28
+ 
