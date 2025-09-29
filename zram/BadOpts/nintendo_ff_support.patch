@@ -240,7 +240,7 @@ timeout. So do not fail if it's not supported and only do handshake again if
 succeeded.
 ---
  drivers/hid/Kconfig        |   13 +
- drivers/hid/hid-core.c     |    5 +
+ drivers/hid/hid-quirks.c    |    7 +
  drivers/hid/hid-ids.h      |    1 +
  drivers/hid/hid-nintendo.c | 2027 ++++++++++++++++++++++++++++++++----
  drivers/input/joydev.c     |   10 +
@@ -277,22 +277,24 @@ index 1c9b30313c35..a0ff63878516 100644
  config HID_NTRIG
  	tristate "N-Trig touch screen"
  	depends on USB_HID
-diff --git a/drivers/hid/hid-core.c b/drivers/hid/hid-core.c
+diff --git a/drivers/hid/hid-quirks.c b/drivers/hid/hid-quirks.c
 index b6aeb6073b23..e4838b70c723 100644
---- a/drivers/hid/hid-core.c
-+++ b/drivers/hid/hid-core.c
-@@ -2152,6 +2152,11 @@ static const struct hid_device_id hid_have_special_driver[] = {
- 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_MICROSOFT, USB_DEVICE_ID_MS_PRESENTER_8K_BT) },
+--- a/drivers/hid/hid-quirks.c
++++ b/drivers/hid/hid-quirks.c
+@@ -526,6 +526,13 @@
  	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_WIIMOTE) },
  	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_WIIMOTE2) },
+ #endif
++#if IS_ENABLED(CONFIG_HID_NINTENDO)
 +	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_JOYCONL) },
 +	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_JOYCONR) },
 +	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_PROCON) },
 +	{ HID_USB_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_PROCON) },
 +	{ HID_USB_DEVICE(USB_VENDOR_ID_NINTENDO, USB_DEVICE_ID_NINTENDO_CHRGGRIP) },
- 	{ HID_USB_DEVICE(USB_VENDOR_ID_RAZER, USB_DEVICE_ID_RAZER_BLADE_14) },
- 	{ HID_USB_DEVICE(USB_VENDOR_ID_CMEDIA, USB_DEVICE_ID_CM6533) },
- 	{ }
++#endif
+ #if IS_ENABLED(CONFIG_HID_NTI)
+ 	{ HID_USB_DEVICE(USB_VENDOR_ID_NTI, USB_DEVICE_ID_USB_SUN) },
+ #endif
 diff --git a/drivers/hid/hid-ids.h b/drivers/hid/hid-ids.h
 index 8d4ff3e60765..6183e9bef973 100644
 --- a/drivers/hid/hid-ids.h
