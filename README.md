@@ -21,6 +21,8 @@
 
 ⚠ 禁用 Spectre 缓解措施 (禁用基于历史的分支预测) 以提升性能
 
+🎮️ 支持手柄原生震动, 更多手柄原生支持, 支持 Nintendo 手柄 (Pro, Joy-Con, 3rd-party)
+
 - 启用 o3 优化编译
 - 为 armv9-a 优化编译
 - 为 a510 优化编译
@@ -42,6 +44,7 @@
   - memcpy
   - memmove
   - memset
+- vmalloc: 支持大块虚拟内存
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - fair: PELT 半衰期 32ms 减少到 16ms
 - 优化 DynamIQ Shared Unit
