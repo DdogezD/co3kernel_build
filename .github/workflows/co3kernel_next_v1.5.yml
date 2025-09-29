@@ -76,6 +76,7 @@ jobs:
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
           patch -p1 < add_xbox_elite.patch || true
+          patch -p1 < add_ABS_PROFILE.patch || true
           patch -p1 < fix_xbox360_longpress.patch || true
           patch -p1 < xpad_refa_bit.patch || true
           patch -p1 < add_xbox_prof.patch || true
