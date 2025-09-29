@@ -75,8 +75,10 @@ jobs:
           patch -p1 < lazy_RCU.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
-          patch -p1 < nintendo_ff_support.patch || true
+          patch -p1 < add_xbox_prof.patch || true
+          patch -p1 < fix_share_xbox.patch || true
           patch -p1 < add_gamepads.patch || true
+          patch -p1 < nintendo_ff_support.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
           #patch -p1 < opt_memutil.patch || true
           patch -p1 < opt_memcpy.patch || true
