@@ -75,16 +75,15 @@ jobs:
           patch -p1 < lazy_RCU.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
-          patch -p1 < add_xbox_elite.patch || true
-          patch -p1 < add_ABS_PROFILE.patch || true
-          patch -p1 < fix_xbox360_longpress.patch || true
-          patch -p1 < xpad_refa_bit.patch || true
-          patch -p1 < add_xbox_prof.patch || true
-          patch -p1 < fix_share_xbox.patch || true
-          patch -p1 < add_gamepads.patch || true
-          patch -p1 < nintendo_ff_support.patch || true
+          #patch -p1 < add_xbox_elite.patch || true
+          #patch -p1 < add_ABS_PROFILE.patch || true
+          #patch -p1 < fix_xbox360_longpress.patch || true
+          #patch -p1 < xpad_refa_bit.patch || true
+          #patch -p1 < add_xbox_prof.patch || true
+          #patch -p1 < fix_share_xbox.patch || true
+          #patch -p1 < add_gamepads.patch || true
+          #patch -p1 < nintendo_ff_support.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
-          #patch -p1 < opt_memutil.patch || true
           patch -p1 < opt_memcpy.patch || true
           patch -p1 < opt_memmove.patch || true
           patch -p1 < opt_memset.patch || true
@@ -147,15 +146,18 @@ jobs:
           echo 'CONFIG_LLVM_POLLY=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_JOYSTICK_XPAD_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_JOYSTICK_XPAD_LEDS=y' >> ./common/arch/arm64/configs/gki_defconfig
-          echo 'CONFIG_NINTENDO_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_JOYSTICK_XPAD_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_JOYSTICK_XPAD_LEDS=y' >> ./common/arch/arm64/configs/gki_defconfig
+          #echo 'CONFIG_NINTENDO_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BBR=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_DEFAULT_WESTWOOD=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NET_SCHED=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NET_SCH_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_DEFAULT_FQ_CODEL=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^CC_OPTIMIZE_FOR_PERFORMANCE=/d' ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=y' >> ./common/arch/arm64/configs/gki_defconfig
           sed -i '/^[[:space:]]*depends on[[:space:]]\+ARC$/d' ./common/init/Kconfig
