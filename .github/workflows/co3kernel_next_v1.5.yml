@@ -69,6 +69,7 @@ jobs:
           cp ../../co3kernel_build/zram/BadOpts/*.patch ./
           patch -p1 < scope_min_manual_hooks_v1.5.patch || true
           patch -p1 < BORE.patch || true
+          patch -p1 < westwood_remix.patch || true
           patch -p1 < armv9-a.patch || true
           patch -p1 < opt_for_a510.patch || true
           patch -p1 < polly1.patch || true
