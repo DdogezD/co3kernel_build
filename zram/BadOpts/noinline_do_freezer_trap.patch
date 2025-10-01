@@ -1,0 +1,28 @@
+From 8b3f56503fbf75958c1340325c211d6cb596db08 Mon Sep 17 00:00:00 2001
+From: brokestar233 <3765589194@qq.com>
+Date: Fri, 8 Aug 2025 01:12:43 +0800
+Subject: [PATCH] kernel: signal: Mark do_freezer_trap as noinline for Thin LTO
+
+Add the noinline attribute to do_freezer_trap() to prevent it from being
+inlined into get_signal() when Thin LTO is enabled. This ensures that
+do_freezer_trap() remains a distinct function, making it easier to
+determine if a program is frozen by inspecting the call stack.
+
+Signed-off-by: brokestar233 <3765589194@qq.com>
+---
+ kernel/signal.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/signal.c b/kernel/signal.c
+index 3e4144f1864b4..157e158a170b8 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -2454,7 +2454,7 @@ static void do_jobctl_trap(void)
+  * Must be called with @current->sighand->siglock held,
+  * which is always released before returning.
+  */
+-static void do_freezer_trap(void)
++noinline static void do_freezer_trap(void)
+ 	__releases(&current->sighand->siglock)
+ {
+ 	/*
