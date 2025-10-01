@@ -313,9 +313,9 @@ index a30d9a8e0361b..af26b01607e51 100644
   */
 -unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
 +#ifdef CONFIG_SCHED_BORE
-+unsigned int sched_tunable_scaling sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_NONE;
++unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_NONE;
 +#else // CONFIG_SCHED_BORE
-+unsigned int sched_tunable_scaling sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
++unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
 +#endif // CONFIG_SCHED_BORE
  
  /*
