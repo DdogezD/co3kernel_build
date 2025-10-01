@@ -1,0 +1,15 @@
+diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
+index e6186c4ea5824..65bb8bb891793 100644
+--- a/arch/arm64/configs/gki_defconfig
++++ b/arch/arm64/configs/gki_defconfig
+@@ -16,10 +16,8 @@ CONFIG_RCU_FAST_NO_HZ=y
+ CONFIG_RCU_BOOST=y
+ CONFIG_RCU_NOCB_CPU=y
+ CONFIG_RCU_LAZY=y
+-CONFIG_RCU_LAZY_DEFAULT_OFF=y
+ CONFIG_IKCONFIG=y
+ CONFIG_IKCONFIG_PROC=y
+-CONFIG_IKHEADERS=y
+ CONFIG_UCLAMP_TASK=y
+ CONFIG_UCLAMP_BUCKETS_COUNT=20
+ CONFIG_CGROUPS=y
