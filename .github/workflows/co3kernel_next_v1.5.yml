@@ -75,6 +75,7 @@ jobs:
           patch -p1 < lazy_RCU_and_IKHEADER.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
+          patch -p1 < noinline_do_freezer_trap.patch || true
           #patch -p1 < add_xbox_elite.patch || true
           #patch -p1 < add_ABS_PROFILE.patch || true
           #patch -p1 < fix_xbox360_longpress.patch || true
@@ -116,7 +117,6 @@ jobs:
           patch -p1 < drm_allow_null.patch || true
           patch -p1 < no_drm_dbg.patch || true
           patch -p1 < no_psi_dbg.patch || true
-          patch -p1 < vmalloc_i915_fix.patch || true
           patch -p1 < vmalloc1.patch || true
           patch -p1 < vmalloc2.patch || true
           patch -p1 < vmalloc3.patch || true
