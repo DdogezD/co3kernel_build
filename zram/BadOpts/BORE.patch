@@ -1,8 +1,3 @@
-From 7bfac1750d5286e34505f46f9a6837bdc86b55d6 Mon Sep 17 00:00:00 2001
-From: DogEZ <127666673+DdogezD@users.noreply.github.com>
-Date: Thu, 2 Oct 2025 05:08:09 +0800
-Subject: [PATCH] add BORE 5.3.0
-
 based on
 https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/f36cc1894b590c7c5b8a16cb9ae879c7e77aec8d
 https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/a58ef1a81806bf6c5496b157bae735c480de39c0
@@ -20,7 +15,6 @@ https://github.com/Pzqqt/android_kernel_xiaomi_marble/commit/b6dd9800ae2a9a21014
  8 files changed, 449 insertions(+), 21 deletions(-)
 
 diff --git a/include/linux/sched.h b/include/linux/sched.h
-index b275cd2851827..8a658535d7267 100644
 --- a/include/linux/sched.h
 +++ b/include/linux/sched.h
 @@ -565,10 +565,25 @@ struct sched_entity {
@@ -50,7 +44,6 @@ index b275cd2851827..8a658535d7267 100644
  
  struct sched_rt_entity {
 diff --git a/include/linux/sched/task.h b/include/linux/sched/task.h
-index 0c2d008099151..e4a8c51ad4dc5 100644
 --- a/include/linux/sched/task.h
 +++ b/include/linux/sched/task.h
 @@ -54,6 +54,9 @@ extern asmlinkage void schedule_tail(struct task_struct *prev);
@@ -64,7 +57,6 @@ index 0c2d008099151..e4a8c51ad4dc5 100644
  extern void sched_post_fork(struct task_struct *p);
  extern void sched_dead(struct task_struct *p);
 diff --git a/init/Kconfig b/init/Kconfig
-index afffca1f660ae..0f29d98d9862b 100644
 --- a/init/Kconfig
 +++ b/init/Kconfig
 @@ -1266,6 +1266,23 @@ config CHECKPOINT_RESTORE
@@ -92,7 +84,6 @@ index afffca1f660ae..0f29d98d9862b 100644
  	bool "Automatic process group scheduling"
  	select CGROUPS
 diff --git a/kernel/fork.c b/kernel/fork.c
-index 6d4fd8ac1fda9..1b779637f5d2a 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
 @@ -2281,6 +2281,9 @@ static __latent_entropy struct task_struct *copy_process(
@@ -106,7 +97,6 @@ index 6d4fd8ac1fda9..1b779637f5d2a 100644
  	retval = perf_event_init_task(p, clone_flags);
  	if (retval)
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 8bed068fbc45c..d165e09fc100d 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -4330,6 +4330,133 @@ int wake_up_state(struct task_struct *p, unsigned int state)
@@ -256,7 +246,6 @@ index 8bed068fbc45c..d165e09fc100d 100644
  
  #ifdef CONFIG_FAIR_GROUP_SCHED
 diff --git a/kernel/sched/debug.c b/kernel/sched/debug.c
-index 3d1b5810cd99a..f0bbe8ed5da99 100644
 --- a/kernel/sched/debug.c
 +++ b/kernel/sched/debug.c
 @@ -542,6 +542,9 @@ print_task(struct seq_file *m, struct rq *rq, struct task_struct *p)
@@ -270,7 +259,6 @@ index 3d1b5810cd99a..f0bbe8ed5da99 100644
  	SEQ_printf(m, " %d %d", task_node(p), task_numa_group_id(p));
  #endif
 diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
-index a30d9a8e0361b..af26b01607e51 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
 @@ -19,6 +19,9 @@
@@ -576,7 +564,6 @@ index a30d9a8e0361b..af26b01607e51 100644
  
  	if (sysctl_sched_child_runs_first && curr && entity_before(curr, se)) {
 diff --git a/kernel/sysctl.c b/kernel/sysctl.c
-index 6842239eff5ef..64d1dc0392bea 100644
 --- a/kernel/sysctl.c
 +++ b/kernel/sysctl.c
 @@ -133,6 +133,22 @@ static int minolduid;
