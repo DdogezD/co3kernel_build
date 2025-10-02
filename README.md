@@ -28,15 +28,15 @@
 - 将 fq_codel 作为默认的数据包队列调度器
 
 #### 🎮️ 更多手柄适配
-- 启用手柄强制反馈与指示灯特性
+- 启用手柄反馈与指示灯特性
 - 同步上游手柄支持列表
 - 支持 Nintendo 手柄特性 (Pro, Joy-Con)
 
 #### 🖨️ 妥协调试效率换取的性能提升
 - 禁用 KFENCE & UBSAN
 - BLK/BLKdev 不收集 io stat
-- 去除 drm 中的 debug
-- 去除 psi 中的 debug
+- 去除 drm 中的 dbg
+- 去除 psi 中的 dbg
 - selinux: 去除对 audit 的依赖以提升性能
 
 #### 🪤 妥协安全性换取的性能提升
