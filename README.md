@@ -57,7 +57,9 @@
   - 为 Cortex-a715 优化编译
   - 启用 llvm Polly 优化器
 
-#### 🔨 小幅性能微调
+#### 🔨 小幅调整
+- 启用 LazyRCU
+- 禁用 IKHEADERS
 - selinux: 避免动态内存分配
 - sched idle loop 中省略多余的获取内存屏障
 - ttwu 流程中省略多余的获取内存屏障
