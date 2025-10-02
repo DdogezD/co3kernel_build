@@ -6,9 +6,16 @@
 #### 👾 内核级 root impl. 
 - KernelSU Next: v1.1.0 (Manual Hooks)
 - KernelSU Scope Minimized Hooks: v1.5
+- Mountify 支持
+  - tmpfs: 支持拓展属性
 
-#### 🧩 Mountify 支持
-- tmpfs: 支持拓展属性
+#### ⚡ CPU 优化
+- BORE 调度器: v5.1.0
+- cpuidle: 去除 menu 的 iowait
+- fair: PELT 半衰期 32ms 减少到 16ms
+- 优化 DynamIQ Shared Unit
+  - fair: 减少任务迁移开销
+  - sched: 禁用 CACHE_HOT_BUDDY
 
 #### 📦 内存优化
 - LZ4: v1.10.0
@@ -18,6 +25,7 @@
   - memset
 - vmalloc: 支持大块虚拟内存
 - mm: 不为 user/admin 登录而保留内存 (~136m)
+- arm64: clear_page 对齐 16b
 
 #### 📈 网络栈优化
 - 采用 bbr 收敛方式的 westwood 算法变种
@@ -49,21 +57,14 @@
   - 为 Cortex-a715 优化编译
   - 启用 llvm Polly 优化器
 
-#### ⚡ 小幅性能优化
+#### 🔨 小幅性能微调
 - selinux: 避免动态内存分配
-- arm64: clear_page 对齐 16b
-- cpuidle: 去除 menu 的 iowait
 - sched idle loop 中省略多余的获取内存屏障
 - ttwu 流程中省略多余的获取内存屏障
-- fair: PELT 半衰期 32ms 减少到 16ms
-- 优化 DynamIQ Shared Unit
-  - fair: 减少任务迁移开销
-  - sched: 禁用 CACHE_HOT_BUDDY
 - fs: 减少缓存以发挥大内存的作用
 - fs: 对齐 8b
 
-## 🧱 CO³Kernel 附加模块
-
+## 🧩 CO³Kernel 附加模块
 - 配置 I/O 调速器为 none
 - 禁用假电池容量预留显示
 - 关闭 coresight
