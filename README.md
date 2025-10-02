@@ -1,15 +1,9 @@
 # CO³Kernel 
 *Custom OnePlus Open Optimized Kernel*
 
-这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备能效表现。
+这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备综合表现。
 
-合并来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem** 等内核开发者的提交, 排名不分先后。
-
-## 特别感谢
-**Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导
-
-**特性**
--
+## CO³Kernel 内核特性
 
 #### 👾 内核级 root impl. 
 - KernelSU Next: v1.1.0 (Manual Hooks)
@@ -76,3 +70,10 @@ CO³Kernel 附加模块
 - 配置 I/O 调速器为 none
 - 禁用假电池容量预留显示
 - 关闭 coresight
+
+## 特别感谢
+此内核合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem** 等内核开发者的提交。
+
+感谢 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导。
+
+排名不分先后。
