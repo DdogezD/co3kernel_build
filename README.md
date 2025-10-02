@@ -12,7 +12,7 @@
 -
 
 #### 👾 内核级 root impl. 
-- KernelSU Next: v1.1.0
+- KernelSU Next: v1.1.0 (Manual Hooks)
 - KernelSU Scope Minimized Hooks: v1.5
 
 #### 🧩 Mountify 支持
@@ -22,7 +22,10 @@
 
 #### 📦 LZ4: v1.10.0
 
-#### 📈 包含精简 bbr 特性的 westwood & fq_codel
+#### 📈 网络栈优化
+- 采用 bbr 收敛方式的 westwood 算法
+- 将 westwood 作为默认的 tcp 拥塞算法
+- 将 fq_codel 作为默认的数据包队列调度器
 
 #### 🎮️ 更多手柄适配
 - 启用手柄强制反馈与指示灯特性
