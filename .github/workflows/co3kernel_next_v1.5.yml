@@ -73,10 +73,11 @@ jobs:
           patch -p1 < opt_for_a715.patch || true
           patch -p1 < polly1.patch || true
           patch -p1 < polly2.patch || true
-          patch -p1 < lazy_RCU_and_IKHEADER.patch || true
+          patch -p1 < lazy_RCU_and_disable_IKHEADERS.patch || true
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
           patch -p1 < noinline_do_freezer_trap.patch || true
+          # not complete yet
           #patch -p1 < add_xbox_elite.patch || true
           #patch -p1 < add_ABS_PROFILE.patch || true
           #patch -p1 < fix_xbox360_longpress.patch || true
@@ -84,7 +85,8 @@ jobs:
           #patch -p1 < add_xbox_prof.patch || true
           #patch -p1 < fix_share_xbox.patch || true
           #patch -p1 < add_gamepads.patch || true
-          #patch -p1 < nintendo_ff_support.patch || true
+          # not complete yet
+          patch -p1 < nintendo_ff_support.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
           patch -p1 < opt_memcpy.patch || true
           patch -p1 < opt_memmove.patch || true
@@ -147,9 +149,9 @@ jobs:
           echo 'CONFIG_LLVM_POLLY=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_KPROBES_HOOK=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TMPFS_XATTR=y' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_JOYSTICK_XPAD_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_JOYSTICK_XPAD_LEDS=y' >> ./common/arch/arm64/configs/gki_defconfig
-          #echo 'CONFIG_NINTENDO_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_JOYSTICK_XPAD_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_JOYSTICK_XPAD_LEDS=y' >> ./common/arch/arm64/configs/gki_defconfig
+          echo 'CONFIG_NINTENDO_FF=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_ADVANCED=y' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_HTCP=n' >> ./common/arch/arm64/configs/gki_defconfig
           echo 'CONFIG_TCP_CONG_BIC=n' >> ./common/arch/arm64/configs/gki_defconfig
