@@ -10,7 +10,6 @@
   - tmpfs: 支持拓展属性
 
 #### ⚡ CPU 优化
-- BORE 调度器: v5.1.11
 - cpuidle: 去除 menu 的 iowait
 - fair: PELT 半衰期 32ms 减少到 16ms
 - 优化 DynamIQ Shared Unit
