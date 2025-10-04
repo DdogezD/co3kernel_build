@@ -67,6 +67,7 @@
 - RCU: 修复省电工作队列造成的性能损失
 - 禁用 IKHEADERS
 - 更快的整数平方根算法
+- arm64: 默认使用 LSE 原子化指令集
 - 宽容的 alarmtimer, 避免阻止 suspend
 - selinux: 避免动态内存分配
 - sched idle loop 中省略多余的获取内存屏障
