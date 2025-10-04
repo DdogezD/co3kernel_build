@@ -79,17 +79,12 @@
 - fs: 减少缓存以发挥大内存的作用
 - fs: 对齐 8b
 
-## 🧩 CO³Kernel 附加模块
+#### 🧩 CO³Kernel 附加模块 (Userspace)
 - 配置 I/O 调速器为 none
 - 禁用假电池容量预留显示
-- 关闭 coresight
 
 ## 🍀 特别感谢
 此内核合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem** 等内核开发者的提交。
-
-感谢 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导。
-
-排名不分先后。
 
 感谢 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导。
 
