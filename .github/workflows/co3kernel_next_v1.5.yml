@@ -131,7 +131,6 @@ jobs:
           patch -p1 < no_drm_dbg.patch || true
           patch -p1 < no_psi_dbg.patch || true
           patch -p1 < disable_self-hosted_dbg.patch || true
-          patch -p1 < arm64_disable_jtag.patch || true
           patch -p1 < always_use_LSE_atomic.patch || true
           patch -p1 < faster_integer_sqrt.patch || true
           patch -p1 < alarmtimer_dont_fail.patch || true
