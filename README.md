@@ -66,7 +66,6 @@
 - 额外的省电工作队列
 - 禁用 IKHEADERS
 - 更快的整数平方根算法
-- 避免冗余的 swap 引用固定
 - 宽容的 alarmtimer, 避免阻止 suspend
 - selinux: 避免动态内存分配
 - sched idle loop 中省略多余的获取内存屏障
