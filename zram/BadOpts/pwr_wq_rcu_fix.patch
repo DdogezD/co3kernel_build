@@ -1,0 +1,35 @@
+From b9f250ca23007e270693593fc1e529b7e43ee127 Mon Sep 17 00:00:00 2001
+From: Yaroslav Furman <yaro330@gmail.com>
+Date: Wed, 11 Dec 2019 03:06:26 +0300
+Subject: [PATCH] rcu: Fix a performance regression.
+
+Commit "rcu: Create RCU-specific workqueues with rescuers" switched RCU
+to using local workqueses and removed power efficiency flag from them.
+
+This caused a performance regression that can be observed in Geekbench 5
+after enabling CONFIG_WQ_POWER_EFFICIENT_DEFAULT: score went down from
+760/2500 to 620/2300 (single/multi core respectively).
+
+Add WQ_POWER_EFFICIENT flag to avoid this regression.
+
+Change-Id: I2c4f41faa55548f9e81a1c0cbe10703948062d89
+---
+ kernel/rcu/tree.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/rcu/tree.c b/kernel/rcu/tree.c
+index ae76e87e0c507..e0e04aa043daf 100644
+--- a/kernel/rcu/tree.c
++++ b/kernel/rcu/tree.c
+@@ -4679,9 +4679,9 @@ void __init rcu_init(void)
+ 	}
+ 
+ 	/* Create workqueue for expedited GPs and for Tree SRCU. */
+-	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_MEM_RECLAIM, 0);
++	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
+ 	WARN_ON(!rcu_gp_wq);
+-	rcu_par_gp_wq = alloc_workqueue("rcu_par_gp", WQ_MEM_RECLAIM, 0);
++	rcu_par_gp_wq = alloc_workqueue("rcu_par_gp", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
+ 	WARN_ON(!rcu_par_gp_wq);
+ 	srcu_init();
+ 

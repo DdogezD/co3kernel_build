@@ -1,0 +1,31 @@
+From c3bf0011a7a642e3e84cf27ca28037c4a64eac00 Mon Sep 17 00:00:00 2001
+From: celtare21 <celtare21@gmail.com>
+Date: Fri, 21 May 2021 12:36:12 +0200
+Subject: [PATCH] alarmtimers: Don't fail on wakeup
+
+Userspace abuses alarmtimers, let's relax the check and not fail suspend.
+
+Signed-off-by: celtare21 <celtare21@gmail.com>
+Signed-off-by: Alex Winkowski <dereference23@outlook.com>
+Signed-off-by: Panchajanya1999 <panchajanya@azure-dev.live>
+Signed-off-by: forenche <prahul2003@gmail.com>
+---
+ kernel/time/alarmtimer.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/kernel/time/alarmtimer.c b/kernel/time/alarmtimer.c
+index 0d3dba04e78d8..faa79c47a2a15 100644
+--- a/kernel/time/alarmtimer.c
++++ b/kernel/time/alarmtimer.c
+@@ -279,10 +279,8 @@ static int alarmtimer_suspend(struct device *dev)
+ 	if (min == 0)
+ 		return 0;
+ 
+-	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
++	if (ktime_to_ns(min) < NSEC_PER_SEC / 2)
+ 		pm_wakeup_event(dev, ktime_to_ms(min) + 1);
+-		return -EBUSY;
+-	}
+ 
+ 	trace_alarmtimer_suspend(expires, type);
+ 

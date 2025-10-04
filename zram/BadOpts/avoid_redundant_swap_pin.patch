@@ -1,0 +1,85 @@
+From ca586e84223fd9395470caa0287db160d7032f0d Mon Sep 17 00:00:00 2001
+From: Kairui Song <kasong@tencent.com>
+Date: Fri, 14 Mar 2025 00:59:31 +0800
+Subject: [PATCH] mm, swap: avoid redundant swap device pinning
+
+Currently __read_swap_cache_async() has get/put_swap_device() calls to
+increase/decrease a swap device reference to prevent swapoff.  While some
+of its callers have already held the swap device reference, e.g in
+do_swap_page() and shmem_swapin_folio() where __read_swap_cache_async()
+will finally called.  Now there are only two callers not holding a swap
+device reference, so make them hold a reference instead.  And drop the
+get/put_swap_device calls in __read_swap_cache_async.  This should reduce
+the overhead for swap in during page fault slightly.
+
+Link: https://lkml.kernel.org/r/20250313165935.63303-4-ryncsn@gmail.com
+Signed-off-by: Kairui Song <kasong@tencent.com>
+Reviewed-by: Baoquan He <bhe@redhat.com>
+Cc: Baolin Wang <baolin.wang@linux.alibaba.com>
+Cc: Barry Song <v-songbaohua@oppo.com>
+Cc: Chris Li <chrisl@kernel.org>
+Cc: "Huang, Ying" <ying.huang@linux.alibaba.com>
+Cc: Hugh Dickins <hughd@google.com>
+Cc: Johannes Weiner <hannes@cmpxchg.org>
+Cc: Kalesh Singh <kaleshsingh@google.com>
+Cc: Matthew Wilcow (Oracle) <willy@infradead.org>
+Cc: Nhat Pham <nphamcs@gmail.com>
+Cc: Yosry Ahmed <yosryahmed@google.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/swap_state.c | 6 +-----
+ mm/zswap.c      | 7 +++++++
+ 2 files changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/mm/swap_state.c b/mm/swap_state.c
+index 2a6583e1f2251..f9f886d01fc7e 100644
+--- a/mm/swap_state.c
++++ b/mm/swap_state.c
+@@ -424,16 +424,12 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
+ 			struct vm_area_struct *vma, unsigned long addr,
+ 			bool *new_page_allocated)
+ {
+-	struct swap_info_struct *si;
++	struct swap_info_struct *si = swp_swap_info(entry);
+ 	struct folio *folio;
+ 	struct page *page;
+ 	void *shadow = NULL;
+ 
+ 	*new_page_allocated = false;
+-	si = get_swap_device(entry);
+-	if (!si)
+-		return NULL;
+-
+ 	for (;;) {
+ 		int err;
+ 		/*
+diff --git a/mm/zswap.c b/mm/zswap.c
+index 39d6df2af9419..6c41068d8466d 100644
+--- a/mm/zswap.c
++++ b/mm/zswap.c
+@@ -1043,11 +1043,16 @@ static int zswap_writeback_entry(struct zswap_entry *entry,
+ 	struct folio *folio;
+ 	struct page *page;
+ 	bool folio_was_allocated;
++	struct swap_info_struct *si;
+ 	struct writeback_control wbc = {
+ 		.sync_mode = WB_SYNC_NONE,
+ 	};
+ 
+ 	/* try to allocate swap cache page */
++	si = get_swap_device(swpentry);
++	if (!si)
++		return -EEXIST;
++
+ 	page = __read_swap_cache_async(swpentry, GFP_KERNEL, NULL, 0,
+ 				       &folio_was_allocated);
+ 
+@@ -1056,6 +1061,8 @@ static int zswap_writeback_entry(struct zswap_entry *entry,
+ 
+ 	folio = page_folio(page);
+ 
++	put_swap_device(si);
++
+ 	if (!folio)
+ 		return -ENOMEM;
+ 

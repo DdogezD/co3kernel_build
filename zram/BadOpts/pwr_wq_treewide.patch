@@ -1,0 +1,92 @@
+diff --git a/fs/fs-writeback.c b/fs/fs-writeback.c
+--- a/fs/fs-writeback.c
++++ b/fs/fs-writeback.c
+@@ -2372,12 +2372,12 @@ static void wakeup_dirtytime_writeback(struct work_struct *w)
+ 				wb_wakeup(wb);
+ 	}
+ 	rcu_read_unlock();
+-	schedule_delayed_work(&dirtytime_work, dirtytime_expire_interval * HZ);
++	queue_delayed_work(system_power_efficient_wq, &dirtytime_work, dirtytime_expire_interval * HZ);
+ }
+ 
+ static int __init start_dirtytime_writeback(void)
+ {
+-	schedule_delayed_work(&dirtytime_work, dirtytime_expire_interval * HZ);
++	queue_delayed_work(system_power_efficient_wq, &dirtytime_work, dirtytime_expire_interval * HZ);
+ 	return 0;
+ }
+ __initcall(start_dirtytime_writeback);
+diff --git a/fs/incfs/data_mgmt.c b/fs/incfs/data_mgmt.c
+--- a/fs/incfs/data_mgmt.c
++++ b/fs/incfs/data_mgmt.c
+@@ -661,7 +661,7 @@ static void log_block_read(struct mount_info *mi, incfs_uuid_t *id,
+ 	++head->current_record_no;
+ 
+ 	spin_unlock(&log->rl_lock);
+-	schedule_delayed_work(&log->ml_wakeup_work, msecs_to_jiffies(16));
++	queue_delayed_work(system_power_efficient_wq, &log->ml_wakeup_work, msecs_to_jiffies(16));
+ }
+ 
+ static int validate_hash_tree(struct backing_file_context *bfc, struct file *f,
+diff --git a/kernel/sched/psi.c b/kernel/sched/psi.c
+--- a/kernel/sched/psi.c
++++ b/kernel/sched/psi.c
+@@ -595,7 +595,7 @@ static void psi_avgs_work(struct work_struct *work)
+ 	}
+ 
+ 	if (changed_states & PSI_STATE_RESCHEDULE) {
+-		schedule_delayed_work(dwork, nsecs_to_jiffies(
++		queue_delayed_work(system_power_efficient_wq, dwork, nsecs_to_jiffies(
+ 				group->avg_next_update - now) + 1);
+ 	}
+ 
+@@ -887,7 +887,7 @@ static void psi_group_change(struct psi_group *group, int cpu,
+ 		psi_schedule_rtpoll_work(group, 1, false);
+ 
+ 	if (wake_clock && !delayed_work_pending(&group->avgs_work))
+-		schedule_delayed_work(&group->avgs_work, PSI_FREQ);
++		queue_delayed_work(system_power_efficient_wq, &group->avgs_work, PSI_FREQ);
+ }
+ 
+ static inline struct psi_group *task_psi_group(struct task_struct *task)
+diff --git a/mm/page_reporting.c b/mm/page_reporting.c
+--- a/mm/page_reporting.c
++++ b/mm/page_reporting.c
+@@ -81,7 +81,7 @@ __page_reporting_request(struct page_reporting_dev_info *prdev)
+ 	 * now we are limiting this to running no more than once every
+ 	 * couple of seconds.
+ 	 */
+-	schedule_delayed_work(&prdev->work, PAGE_REPORTING_DELAY);
++	queue_delayed_work(system_power_efficient_wq, &prdev->work, PAGE_REPORTING_DELAY);
+ }
+ 
+ /* notify prdev of free page reporting request */
+@@ -348,7 +348,7 @@ static void page_reporting_process(struct work_struct *work)
+ 	 */
+ 	state = atomic_cmpxchg(&prdev->state, state, PAGE_REPORTING_IDLE);
+ 	if (state == PAGE_REPORTING_REQUESTED)
+-		schedule_delayed_work(&prdev->work, PAGE_REPORTING_DELAY);
++		queue_delayed_work(system_power_efficient_wq, &prdev->work, PAGE_REPORTING_DELAY);
+ }
+ 
+ static DEFINE_MUTEX(page_reporting_mutex);
+diff --git a/mm/vmstat.c b/mm/vmstat.c
+--- a/mm/vmstat.c
++++ b/mm/vmstat.c
+@@ -2058,7 +2058,7 @@ static void vmstat_shepherd(struct work_struct *w)
+ 	}
+ 	cpus_read_unlock();
+ 
+-	schedule_delayed_work(&shepherd,
++	queue_delayed_work(system_power_efficient_wq, &shepherd,
+ 		round_jiffies_relative(sysctl_stat_interval));
+ }
+ 
+@@ -2070,7 +2070,7 @@ static void __init start_shepherd_timer(void)
+ 		INIT_DEFERRABLE_WORK(per_cpu_ptr(&vmstat_work, cpu),
+ 			vmstat_update);
+ 
+-	schedule_delayed_work(&shepherd,
++	queue_delayed_work(system_power_efficient_wq, &shepherd,
+ 		round_jiffies_relative(sysctl_stat_interval));
+ }
