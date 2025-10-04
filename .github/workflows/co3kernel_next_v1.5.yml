@@ -103,7 +103,6 @@ jobs:
           patch -p1 < selinux_rm_audit_deps.patch || true
           patch -p1 < selinux_avoid_dyna_mem_allo.patch || true
           patch -p1 < blk_disable_iostats.patch || true
-          patch -p1 < avoid_redundant_swap_pin.patch || true
           patch -p1 < do_not_collect_iostats.patch || true
           patch -p1 < idle_mem_barrier.patch || true
           patch -p1 < skip_barrier_ttwu.patch || true
