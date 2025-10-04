@@ -69,6 +69,11 @@ jobs:
           cp ../../co3kernel_build/zram/BadOpts/*.patch ./
           patch -p1 < scope_min_manual_hooks_v1.5.patch || true
           #patch -p1 < BORE.patch || true
+          patch -p1 < ufs_hidfeat_dri.patch || true
+          patch -p1 < fix_ufs_error.patch || true
+          patch -p1 < ufs_hid_dri_upd.patch || true
+          patch -p1 < ufs_fbo_dri.patch || true
+          patch -p1 < ufs_hidfeat3_dri.patch || true
           patch -p1 < westwood_remix.patch || true
           patch -p1 < TCP_NODELAY.patch || true
           patch -p1 < opt_for_sm8550.patch || true
@@ -78,6 +83,7 @@ jobs:
           patch -p1 < disable_KFENCE_UBSAN.patch || true
           patch -p1 < do_not_security.patch || true
           patch -p1 < noinline_do_freezer_trap.patch || true
+          
           # not complete yet
           #patch -p1 < add_xbox_elite.patch || true
           #patch -p1 < add_ABS_PROFILE.patch || true
@@ -87,6 +93,7 @@ jobs:
           #patch -p1 < fix_share_xbox.patch || true
           #patch -p1 < add_gamepads.patch || true
           # not complete yet
+          
           patch -p1 < nintendo_ff_support.patch || true
           patch -p1 < xiaomi_zram_opt.patch || true
           patch -p1 < opt_memcpy.patch || true
@@ -124,6 +131,8 @@ jobs:
           patch -p1 < no_drm_dbg.patch || true
           patch -p1 < no_psi_dbg.patch || true
           patch -p1 < disable_self-hosted_dbg.patch || true
+          patch -p1 < arm64_disable_jtag.patch || true
+          patch -p1 < always_use_LSE_atomic.patch || true
           patch -p1 < faster_integer_sqrt.patch || true
           patch -p1 < alarmtimer_dont_fail.patch || true
           patch -p1 < vmalloc1.patch || true
@@ -133,6 +142,8 @@ jobs:
           patch -p1 < vmalloc5.patch || true
           patch -p1 < vmalloc6.patch || true
           patch -p1 < vmalloc7.patch || true
+          #patch -p1 < temp_upd_860.patch || true
+          #patch -p1 < 0.patch || true
           rm -rf kernel_workspace/co3kernel_build
 
       - name: Add KernelSU Next
