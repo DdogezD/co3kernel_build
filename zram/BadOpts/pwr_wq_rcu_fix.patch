@@ -1,6 +1,6 @@
-From b9f250ca23007e270693593fc1e529b7e43ee127 Mon Sep 17 00:00:00 2001
-From: Yaroslav Furman <yaro330@gmail.com>
-Date: Wed, 11 Dec 2019 03:06:26 +0300
+From 7118405145ccee9fd9d3adae3a4feb2a2224b1e5 Mon Sep 17 00:00:00 2001
+From: DogEZ <127666673+DdogezD@users.noreply.github.com>
+Date: Sat, 4 Oct 2025 15:57:38 +0800
 Subject: [PATCH] rcu: Fix a performance regression.
 
 Commit "rcu: Create RCU-specific workqueues with rescuers" switched RCU
@@ -18,18 +18,24 @@ Change-Id: I2c4f41faa55548f9e81a1c0cbe10703948062d89
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/kernel/rcu/tree.c b/kernel/rcu/tree.c
-index ae76e87e0c507..e0e04aa043daf 100644
+index ed0756afdf20b..48bd004b98b2c 100644
 --- a/kernel/rcu/tree.c
 +++ b/kernel/rcu/tree.c
-@@ -4679,9 +4679,9 @@ void __init rcu_init(void)
- 	}
+@@ -4538,7 +4538,7 @@ static void __init rcu_start_exp_gp_kworkers(void)
  
- 	/* Create workqueue for expedited GPs and for Tree SRCU. */
--	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_MEM_RECLAIM, 0);
-+	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
- 	WARN_ON(!rcu_gp_wq);
+ static inline void rcu_alloc_par_gp_wq(void)
+ {
 -	rcu_par_gp_wq = alloc_workqueue("rcu_par_gp", WQ_MEM_RECLAIM, 0);
 +	rcu_par_gp_wq = alloc_workqueue("rcu_par_gp", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
  	WARN_ON(!rcu_par_gp_wq);
- 	srcu_init();
+ }
+ #endif /* CONFIG_RCU_EXP_KTHREAD */
+@@ -4874,7 +4874,7 @@ void __init rcu_init(void)
+ 	}
+ 
+ 	/* Create workqueue for Tree SRCU and for expedited GPs. */
+-	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_MEM_RECLAIM, 0);
++	rcu_gp_wq = alloc_workqueue("rcu_gp", WQ_POWER_EFFICIENT | WQ_MEM_RECLAIM, 0);
+ 	WARN_ON(!rcu_gp_wq);
+ 	rcu_alloc_par_gp_wq();
  
