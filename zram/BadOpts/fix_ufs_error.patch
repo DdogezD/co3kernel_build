@@ -1,0 +1,64 @@
+From 36536728460fb1e6bfe3c8f0e91214a51cdbbfde Mon Sep 17 00:00:00 2001
+From: zhangx21 <zhangxu21@lenovo.com>
+Date: Thu, 9 Mar 2023 10:05:42 +0800
+Subject: [PATCH] scsi/ufs: Fix rebase(r1.0.r1_000036) build errors
+
+kernel_platform/msm-kernel/drivers/scsi/ufs/ufs-qcom.c:4379:13: error: redefinition of 'ufs_qcom_event_notify'
+static void ufs_qcom_event_notify(struct ufs_hba *hba,
+kernel_platform/msm-kernel/drivers/scsi/ufs/ufs-qcom.c:2155:13: note: previous definition is here
+static void ufs_qcom_event_notify(struct ufs_hba *hba, enum ufs_event_type evt,
+
+Change-Id: Ia1c56a1ad21c0b39aeda4170ac1930ba2a1888a0
+Reviewed-on: https://gerrit.mot.com/2547106
+SME-Granted: SME Approvals Granted
+SLTApproved: Slta Waiver
+Tested-by: Jira Key
+Reviewed-by: Shaohua Jia <jiash1@motorola.com>
+Reviewed-by: Zhenxin Xi <xizx@motorola.com>
+Submit-Approved: Xu Zhang <zhangxu21@lenovo.com>
+---
+ drivers/scsi/ufs/ufs-qcom.c | 17 +++++------------
+ 1 file changed, 5 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/scsi/ufs/ufs-qcom.c b/drivers/scsi/ufs/ufs-qcom.c
+index 8b4e247e0e81..a45f65b299d7 100644
+--- a/drivers/scsi/ufs/ufs-qcom.c
++++ b/drivers/scsi/ufs/ufs-qcom.c
+@@ -1994,15 +1994,6 @@ static int ufs_qcom_bus_register(struct ufs_qcom_host *host)
+ 	return 0;
+ }
+ 
+-static void ufs_qcom_event_notify(struct ufs_hba *hba, enum ufs_event_type evt,
+-				  void *data)
+-{
+-#if defined(CONFIG_UFSFEATURE)
+-	if (evt == UFS_EVT_WL_SUSP_ERR)
+-		ufsf_resume(ufs_qcom_get_ufsf(hba), true);
+-#endif
+-}
+-
+ static void ufs_qcom_dev_ref_clk_ctrl(struct ufs_qcom_host *host, bool enable)
+ {
+ 	if (host->dev_ref_clk_ctrl_mmio &&
+@@ -4185,6 +4176,11 @@ static void ufs_qcom_event_notify(struct ufs_hba *hba,
+ 		if (reg == UIC_DATA_LINK_LAYER_EC_PA_ERROR_IND_RECEIVED)
+ 			evt_valid = false;
+ 		break;
++#if defined(CONFIG_UFSFEATURE)
++	case UFS_EVT_WL_SUSP_ERR:
++		ufsf_resume(ufs_qcom_get_ufsf(hba), true);
++		break;
++#endif
+ 	default:
+ 		break;
+ 	}
+@@ -4663,9 +4659,6 @@ static const struct ufs_hba_variant_ops ufs_hba_qcom_vops = {
+ 	.config_scaling_param = ufs_qcom_config_scaling_param,
+ 	.program_key		= ufs_qcom_ice_program_key,
+ 	.fixup_dev_quirks       = ufs_qcom_fixup_dev_quirks,
+-#if defined(CONFIG_UFSFEATURE)
+-	.event_notify		= ufs_qcom_event_notify,
+-#endif
+ };
+ 
+ /**

@@ -1,0 +1,166 @@
+From 4e189cc70c46dc112244a71a89ebe2f75b1a66ac Mon Sep 17 00:00:00 2001
+From: Sultan Alsawaf <sultan@kerneltoast.com>
+Date: Sat, 18 Nov 2023 15:19:37 -0800
+Subject: [PATCH] arm64: lse: Always use LSE atomic instructions
+
+Since we are compiling for a single chipset that is known to support LSE,
+the system_uses_lse_atomics() static branch can be eliminated entirely.
+
+Therefore, make system_uses_lse_atomics() always true to always use LSE
+atomics, and update ARM64_LSE_ATOMIC_INSN() users to get rid of the extra
+nops used for alternatives patching at runtime.
+
+This reduces generated code size by removing LL/SC atomics, which improves
+instruction cache footprint.
+
+Signed-off-by: Sultan Alsawaf <sultan@kerneltoast.com>
+---
+ arch/arm64/include/asm/cmpxchg.h           | 10 +---------
+ arch/arm64/include/asm/lse.h               | 12 ++++--------
+ arch/arm64/include/asm/percpu.h            | 16 ++--------------
+ arch/arm64/include/asm/processor.h         |  4 +---
+ arch/arm64/kvm/hyp/include/nvhe/spinlock.h | 16 ++--------------
+ 5 files changed, 10 insertions(+), 48 deletions(-)
+
+diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
+index f9bef42c1411..f35e73597203 100644
+--- a/arch/arm64/include/asm/cmpxchg.h
++++ b/arch/arm64/include/asm/cmpxchg.h
+@@ -25,16 +25,8 @@ static inline u##sz __xchg_case_##name##sz(u##sz x, volatile void *ptr)		\
+ 	unsigned long tmp;							\
+ 										\
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(					\
+-	/* LL/SC */								\
+-	"	prfm	pstl1strm, %2\n"					\
+-	"1:	ld" #acq "xr" #sfx "\t%" #w "0, %2\n"				\
+-	"	st" #rel "xr" #sfx "\t%w1, %" #w "3, %2\n"			\
+-	"	cbnz	%w1, 1b\n"						\
+-	"	" #mb,								\
+ 	/* LSE atomics */							\
+-	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n"		\
+-		__nops(3)							\
+-	"	" #nop_lse)							\
++	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n")		\
+ 	: "=&r" (ret), "=&r" (tmp), "+Q" (*(u##sz *)ptr)			\
+ 	: "r" (x)								\
+ 	: cl);									\
+diff --git a/arch/arm64/include/asm/lse.h b/arch/arm64/include/asm/lse.h
+index 29d0719bd2ed..e0b33489eedd 100644
+--- a/arch/arm64/include/asm/lse.h
++++ b/arch/arm64/include/asm/lse.h
+@@ -19,11 +19,8 @@
+ extern struct static_key_false cpu_hwcap_keys[ARM64_NCAPS];
+ extern struct static_key_false arm64_const_caps_ready;
+ 
+-static inline bool system_uses_lse_atomics(void)
+-{
+-	return (static_branch_likely(&arm64_const_caps_ready)) &&
+-		static_branch_likely(&cpu_hwcap_keys[ARM64_HAS_LSE_ATOMICS]);
+-}
++/* Always use LSE atomics */
++#define system_uses_lse_atomics() true
+ 
+ #define __lse_ll_sc_body(op, ...)					\
+ ({									\
+@@ -32,9 +29,8 @@ static inline bool system_uses_lse_atomics(void)
+ 		__ll_sc_##op(__VA_ARGS__);				\
+ })
+ 
+-/* In-line patching at runtime */
+-#define ARM64_LSE_ATOMIC_INSN(llsc, lse)				\
+-	ALTERNATIVE(llsc, __LSE_PREAMBLE lse, ARM64_HAS_LSE_ATOMICS)
++/* Always use LSE atomics */
++#define ARM64_LSE_ATOMIC_INSN(lse)		__LSE_PREAMBLE lse
+ 
+ #else	/* CONFIG_ARM64_LSE_ATOMICS */
+ 
+diff --git a/arch/arm64/include/asm/percpu.h b/arch/arm64/include/asm/percpu.h
+index b9ba19dbdb69..f925fe32f4f7 100644
+--- a/arch/arm64/include/asm/percpu.h
++++ b/arch/arm64/include/asm/percpu.h
+@@ -71,14 +71,8 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
+ 	u##sz tmp;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[tmp], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[tmp], %" #w "[tmp], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[tmp], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+-		#op_lse "\t%" #w "[val], %[ptr]\n"			\
+-		__nops(3))						\
++		#op_lse "\t%" #w "[val], %[ptr]\n")			\
+ 	: [loop] "=&r" (loop), [tmp] "=&r" (tmp),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
+@@ -92,15 +86,9 @@ __percpu_##name##_return_case_##sz(void *ptr, unsigned long val)	\
+ 	u##sz ret;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[ret], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[ret], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+ 		#op_lse "\t%" #w "[val], %" #w "[ret], %[ptr]\n"	\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-		__nops(2))						\
++		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n")\
+ 	: [loop] "=&r" (loop), [ret] "=&r" (ret),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
+diff --git a/arch/arm64/include/asm/processor.h b/arch/arm64/include/asm/processor.h
+index 7c22302c26b0..d7beb6ab5126 100644
+--- a/arch/arm64/include/asm/processor.h
++++ b/arch/arm64/include/asm/processor.h
+@@ -294,9 +294,7 @@ static inline void prefetchw(const void *ptr)
+ #define ARCH_HAS_SPINLOCK_PREFETCH
+ static inline void spin_lock_prefetch(const void *ptr)
+ {
+-	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-		     "prfm pstl1strm, %a0",
+-		     "nop") : : "p" (ptr));
++	/* No prefetch for LSE atomics */
+ }
+ 
+ extern unsigned long __ro_after_init signal_minsigstksz; /* sigframe size */
+diff --git a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+index 7c7ea8c55405..f1c743a5259d 100644
+--- a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
++++ b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+@@ -49,16 +49,9 @@ static inline void hyp_spin_lock(hyp_spinlock_t *lock)
+ 	asm volatile(
+ 	/* Atomically increment the next ticket. */
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-"	prfm	pstl1strm, %3\n"
+-"1:	ldaxr	%w0, %3\n"
+-"	add	%w1, %w0, #(1 << 16)\n"
+-"	stxr	%w2, %w1, %3\n"
+-"	cbnz	%w2, 1b\n",
+ 	/* LSE atomics */
+ "	mov	%w2, #(1 << 16)\n"
+-"	ldadda	%w2, %w0, %3\n"
+-	__nops(3))
++"	ldadda	%w2, %w0, %3\n")
+ 
+ 	/* Did we get the lock? */
+ "	eor	%w1, %w0, %w0, ror #16\n"
+@@ -85,14 +78,9 @@ static inline void hyp_spin_unlock(hyp_spinlock_t *lock)
+ 
+ 	asm volatile(
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"	ldrh	%w1, %0\n"
+-	"	add	%w1, %w1, #1\n"
+-	"	stlrh	%w1, %0",
+ 	/* LSE atomics */
+ 	"	mov	%w1, #1\n"
+-	"	staddlh	%w1, %0\n"
+-	__nops(1))
++	"	staddlh	%w1, %0\n")
+ 	: "=Q" (lock->owner), "=&r" (tmp)
+ 	:
+ 	: "memory");

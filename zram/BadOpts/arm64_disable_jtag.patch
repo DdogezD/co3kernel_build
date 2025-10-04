@@ -1,0 +1,23 @@
+From 09f603b74272129bbc7e660c6c5287bfe689f85b Mon Sep 17 00:00:00 2001
+From: Tyler Nijmeh <tylernij@gmail.com>
+Date: Sat, 3 Aug 2019 20:29:46 -0700
+Subject: [PATCH] arm64: debug: Disable JTAG debugging by default
+
+Signed-off-by: Tyler Nijmeh <tylernij@gmail.com>
+---
+ arch/arm64/kernel/debug-monitors.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/debug-monitors.c b/arch/arm64/kernel/debug-monitors.c
+index b1caa93397055..c44dc584b5057 100644
+--- a/arch/arm64/kernel/debug-monitors.c
++++ b/arch/arm64/kernel/debug-monitors.c
+@@ -53,7 +53,7 @@ NOKPROBE_SYMBOL(mdscr_read);
+  * Allow root to disable self-hosted debug from userspace.
+  * This is useful if you want to connect an external JTAG debugger.
+  */
+-static bool debug_enabled = true;
++static bool debug_enabled;
+ 
+ static int create_debug_debugfs_entry(void)
+ {
