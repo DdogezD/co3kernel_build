@@ -69,6 +69,7 @@ jobs:
           cp ../../co3kernel_build/zram/BadOpts/*.patch ./
           patch -p1 < scope_min_manual_hooks_v1.5.patch || true
           #patch -p1 < BORE.patch || true
+          patch -p1 < merge_qcom_changes.patch || true
           patch -p1 < ufs_hidfeat_dri.patch || true
           patch -p1 < fix_ufs_error.patch || true
           patch -p1 < ufs_hid_dri_upd.patch || true
