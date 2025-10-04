@@ -1,0 +1,125 @@
+From 7b6422d339cbee11217e600ab2e160a8b7bdb498 Mon Sep 17 00:00:00 2001
+From: ztc1997 <dev@ztc1997.com>
+Date: Tue, 16 Apr 2024 16:40:53 +0800
+Subject: [PATCH] lib: zstd: Add back `EXPORT_SYMBOL`s that were removed in
+ b96ee8420335d504c1ac577d50a87ab3624124a4
+
+Fix for:
+ERROR: Differences between ksymtab and symbol list detected!
+Symbols missing from ksymtab:
+ - ZSTD_CStreamWorkspaceBound
+ - ZSTD_DStreamWorkspaceBound
+ - ZSTD_compressStream
+ - ZSTD_decompressStream
+ - ZSTD_endStream
+ - ZSTD_getParams
+ - ZSTD_initCStream
+ - ZSTD_initDStream
+ - ZSTD_maxCLevel
+
+Change-Id: Id2dcdb09a9a771c5800dab73eaf412fe63b21c2f
+---
+ lib/zstd/compress/zstd_compress.c     | 6 ++++++
+ lib/zstd/decompress/zstd_decompress.c | 2 ++
+ lib/zstd/zstd_compress_module.c       | 6 ++++++
+ lib/zstd/zstd_decompress_module.c     | 6 ++++++
+ 4 files changed, 20 insertions(+)
+
+diff --git a/lib/zstd/compress/zstd_compress.c b/lib/zstd/compress/zstd_compress.c
+index 0d139727cd392..73dbb9bc66e4b 100644
+--- a/lib/zstd/compress/zstd_compress.c
++++ b/lib/zstd/compress/zstd_compress.c
+@@ -5837,6 +5837,7 @@ size_t ZSTD_initCStream(ZSTD_CStream* zcs, int compressionLevel)
+     FORWARD_IF_ERROR( ZSTD_CCtx_setParameter(zcs, ZSTD_c_compressionLevel, compressionLevel) , "");
+     return 0;
+ }
++EXPORT_SYMBOL(ZSTD_initCStream);
+ 
+ /*======   Compression   ======*/
+ 
+@@ -6051,6 +6052,7 @@ size_t ZSTD_compressStream(ZSTD_CStream* zcs, ZSTD_outBuffer* output, ZSTD_inBuf
+     FORWARD_IF_ERROR( ZSTD_compressStream2(zcs, output, input, ZSTD_e_continue) , "");
+     return ZSTD_nextInputSizeHint_MTorST(zcs);
+ }
++EXPORT_SYMBOL(ZSTD_compressStream);
+ 
+ /* After a compression call set the expected input/output buffer.
+  * This is validated at the start of the next compression call.
+@@ -6765,12 +6767,15 @@ size_t ZSTD_endStream(ZSTD_CStream* zcs, ZSTD_outBuffer* output)
+         return toFlush;
+     }
+ }
++EXPORT_SYMBOL(ZSTD_endStream);
+ 
+ 
+ /*-=====  Pre-defined compression levels  =====-*/
+ #include "clevels.h"
+ 
+ int ZSTD_maxCLevel(void) { return ZSTD_MAX_CLEVEL; }
++EXPORT_SYMBOL(ZSTD_maxCLevel);
++
+ int ZSTD_minCLevel(void) { return (int)-ZSTD_TARGETLENGTH_MAX; }
+ int ZSTD_defaultCLevel(void) { return ZSTD_CLEVEL_DEFAULT; }
+ 
+@@ -6912,6 +6917,7 @@ ZSTD_parameters ZSTD_getParams(int compressionLevel, unsigned long long srcSizeH
+     if (srcSizeHint == 0) srcSizeHint = ZSTD_CONTENTSIZE_UNKNOWN;
+     return ZSTD_getParams_internal(compressionLevel, srcSizeHint, dictSize, ZSTD_cpm_unknown);
+ }
++EXPORT_SYMBOL(ZSTD_getParams);
+ 
+ void ZSTD_registerSequenceProducer(
+     ZSTD_CCtx* zc,
+diff --git a/lib/zstd/decompress/zstd_decompress.c b/lib/zstd/decompress/zstd_decompress.c
+index b2bfa2b16859e..049b8aae43fa4 100644
+--- a/lib/zstd/decompress/zstd_decompress.c
++++ b/lib/zstd/decompress/zstd_decompress.c
+@@ -1675,6 +1675,7 @@ size_t ZSTD_initDStream(ZSTD_DStream* zds)
+     FORWARD_IF_ERROR(ZSTD_DCtx_refDDict(zds, NULL), "");
+     return ZSTD_startingInputLength(zds->format);
+ }
++EXPORT_SYMBOL(ZSTD_initDStream);
+ 
+ /* ZSTD_initDStream_usingDDict() :
+  * ddict will just be referenced, and must outlive decompression session
+@@ -2278,6 +2279,7 @@ size_t ZSTD_decompressStream(ZSTD_DStream* zds, ZSTD_outBuffer* output, ZSTD_inB
+         return nextSrcSizeHint;
+     }
+ }
++EXPORT_SYMBOL(ZSTD_decompressStream);
+ 
+ size_t ZSTD_decompressStream_simpleArgs (
+                             ZSTD_DCtx* dctx,
+diff --git a/lib/zstd/zstd_compress_module.c b/lib/zstd/zstd_compress_module.c
+index 8ecf43226af2f..9077139ece0df 100644
+--- a/lib/zstd/zstd_compress_module.c
++++ b/lib/zstd/zstd_compress_module.c
+@@ -107,6 +107,12 @@ size_t zstd_cstream_workspace_bound(const zstd_compression_parameters *cparams)
+ }
+ EXPORT_SYMBOL(zstd_cstream_workspace_bound);
+ 
++size_t ZSTD_CStreamWorkspaceBound(ZSTD_compressionParameters *cparams)
++{
++	return zstd_cstream_workspace_bound(cparams);
++}
++EXPORT_SYMBOL(ZSTD_CStreamWorkspaceBound);
++
+ zstd_cstream *zstd_init_cstream(const zstd_parameters *parameters,
+ 	unsigned long long pledged_src_size, void *workspace, size_t workspace_size)
+ {
+diff --git a/lib/zstd/zstd_decompress_module.c b/lib/zstd/zstd_decompress_module.c
+index 7d31518e9d5ab..2fa7a1cf18aea 100644
+--- a/lib/zstd/zstd_decompress_module.c
++++ b/lib/zstd/zstd_decompress_module.c
+@@ -65,6 +65,12 @@ size_t zstd_dstream_workspace_bound(size_t max_window_size)
+ }
+ EXPORT_SYMBOL(zstd_dstream_workspace_bound);
+ 
++size_t ZSTD_DStreamWorkspaceBound(size_t max_window_size)
++{
++	return zstd_dstream_workspace_bound(max_window_size);
++}
++EXPORT_SYMBOL(ZSTD_DStreamWorkspaceBound);
++
+ zstd_dstream *zstd_init_dstream(size_t max_window_size, void *workspace,
+ 	size_t workspace_size)
+ {
