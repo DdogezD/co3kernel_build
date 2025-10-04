@@ -18,7 +18,7 @@
 
 #### 📦 内存优化
 - LZ4: v1.10.0
-- *ZSTD: v1.5.7
+- ZSTD: v1.5.7
 - 优化的 mem* (~25%+ faster)
   - memcpy
   - memmove
@@ -28,7 +28,8 @@
 - arm64: clear_page 对齐 16b
 
 #### 📀 存储优化
-- *启用 Samsung FBO (升级 UFS 4.1)
+- 启用 Samsung FBO (升级 UFS 4.1)
+- 启用 Samsung HID Features 1.1
 
 #### 📈 网络栈优化
 - 采用 bbr 收敛方式的 westwood 算法变种
