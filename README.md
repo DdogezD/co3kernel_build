@@ -18,6 +18,7 @@
 
 #### 📦 内存优化
 - LZ4: v1.10.0
+- ZSTD: v1.5.7
 - 优化的 mem* (~25%+ faster)
   - memcpy
   - memmove
@@ -30,6 +31,7 @@
 - 采用 bbr 收敛方式的 westwood 算法变种
 - 将 westwood 变种作为默认的 tcp 拥塞算法
 - 将 fq_codel 作为默认的数据包队列调度器
+- 使用 TCP_NODELAY
 
 #### 🎮️ 更多手柄适配
 - 启用手柄反馈与指示灯特性
@@ -41,8 +43,9 @@
 #### 🖨️ 妥协调试效率换取的性能提升
 - 禁用 KFENCE & UBSAN
 - BLK/BLKdev 不收集 io stat
-- 去除 drm 中的 dbg
-- 去除 psi 中的 dbg
+- 去除 drm 中的 debug
+- 去除 psi 中的 debug
+- arm64: 关闭 self-hosted debug
 - selinux: 去除对 audit 的依赖以提升性能
 
 #### 🔓 妥协安全性换取的性能提升
@@ -60,7 +63,11 @@
 
 #### 🔨 小幅调整
 - 启用 LazyRCU
+- 额外的省电工作队列
 - 禁用 IKHEADERS
+- 更快的整数平方根算法
+- 避免冗余的 swap 引用固定
+- 宽容的 alarmtimer, 避免阻止 suspend
 - selinux: 避免动态内存分配
 - sched idle loop 中省略多余的获取内存屏障
 - ttwu 流程中省略多余的获取内存屏障
