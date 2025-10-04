@@ -95,19 +95,6 @@ jobs:
           cd kernel_workspace
           git clone https://github.com/DdogezD/co3kernel_build.git
 
-      - name: Upgrade lz4
-        run: |
-          cd kernel_workspace/kernel_platform/common
-          rm -f lib/lz4/lz4_compress.c
-          rm -f lib/lz4/lz4_decompress.c
-          rm -f lib/lz4/lz4defs.h
-          rm -f lib/lz4/lz4hc_compress.c
-          rm -rf fs/f2fs/lz4armv8
-          cp -r ../../co3kernel_build/zram/lz4/* ./lib/lz4/
-          cp -r ../../co3kernel_build/zram/include/linux/* ./include/linux/
-          cp ../../co3kernel_build/zram/lz4_1.10.0.patch ./
-          patch -p1 < lz4_1.10.0.patch || true
-
       - name: Upgrade zstd：sync to standard zstd
         run: |
           cd kernel_workspace/kernel_platform/common
@@ -152,6 +139,8 @@ jobs:
           echo "patch_ex2 done!"
           patch -p1 < default_level.patch || true
           echo "patch_default_level done!"
+          patch -p1 < zstd_symbol.patch || true
+          echo "zstd_symbol done!"
 
       - name: Wipe out
         run: |
