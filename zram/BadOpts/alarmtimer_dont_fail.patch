@@ -23,7 +23,7 @@ index 0d3dba04e78d8..faa79c47a2a15 100644
  
 -	if (ktime_to_ns(min) < 2 * NSEC_PER_SEC) {
 +	if (ktime_to_ns(min) < NSEC_PER_SEC / 2)
- 		pm_wakeup_event(dev, ktime_to_ms(min) + 1);
+ 		pm_wakeup_event(dev, 2 * MSEC_PER_SEC);
 -		return -EBUSY;
 -	}
  
