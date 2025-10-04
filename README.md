@@ -18,7 +18,7 @@
 
 #### 📦 内存优化
 - LZ4: v1.10.0
-- ZSTD: v1.5.7
+- *ZSTD: v1.5.7
 - 优化的 mem* (~25%+ faster)
   - memcpy
   - memmove
@@ -26,6 +26,9 @@
 - vmalloc: 支持大块虚拟内存
 - mm: 不为 user/admin 登录而保留内存 (~136m)
 - arm64: clear_page 对齐 16b
+
+#### 📀 存储优化
+- *启用 Samsung FBO (升级 UFS 4.1)
 
 #### 📈 网络栈优化
 - 采用 bbr 收敛方式的 westwood 算法变种
@@ -46,6 +49,7 @@
 - 去除 drm 中的 debug
 - 去除 psi 中的 debug
 - arm64: 关闭 self-hosted debug
+- arm64: 关闭 JTAG 调试
 - selinux: 去除对 audit 的依赖以提升性能
 
 #### 🔓 妥协安全性换取的性能提升
@@ -67,7 +71,7 @@
 - RCU: 修复省电工作队列造成的性能损失
 - 禁用 IKHEADERS
 - 更快的整数平方根算法
-- arm64: 默认使用 LSE 原子化指令集
+- arm64: 默认使用 LSE 原子指令集
 - 宽容的 alarmtimer, 避免阻止 suspend
 - selinux: 避免动态内存分配
 - sched idle loop 中省略多余的获取内存屏障
@@ -82,6 +86,10 @@
 
 ## 🍀 特别感谢
 此内核合并了来自 **Sultan, arter97, Pzqqt, brokestar233, ztc1997, hfdem** 等内核开发者的提交。
+
+感谢 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导。
+
+排名不分先后。
 
 感谢 **Pzqqt, brokestar233, Cloud_Yun** 提供了开发指导。
 
