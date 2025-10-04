@@ -64,6 +64,7 @@
 #### 🔨 小幅调整
 - 启用 LazyRCU
 - 额外的省电工作队列
+- RCU: 修复省电工作队列造成的性能损失
 - 禁用 IKHEADERS
 - 更快的整数平方根算法
 - 宽容的 alarmtimer, 避免阻止 suspend
