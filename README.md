@@ -1,7 +1,7 @@
 # CO³Kernel 
 *Custom OnePlus Open Optimized Kernel*
 
-这是为 Hedwig (OnePlus Open) 编译的内核, 基于 OnePlusOSS 源码, 提升设备综合表现。
+这是为 Hedwig (OnePlus Open) 编译的内核, 基于 [OnePlusOSS 源码](https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8550/tree/oneplus/sm8550_v_15.0.0_oneplus_open), 提升设备综合表现。
 
 #### 👾 内核级 root impl. 
 - KernelSU Next: v1.1.0 (Manual Hooks)
